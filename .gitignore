@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Env / secrets
+.env
+*.db
+*.sqlite
+*.sqlite3
+
+# Test / cache
+.pytest_cache/
+.ruff_cache/
+
+# OS
+.DS_Store
