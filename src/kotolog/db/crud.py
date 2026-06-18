@@ -1,0 +1,129 @@
+"""CRUD 関数（T1.1）。
+
+時刻はすべて JST 絶対時刻の ISO8601 文字列で受け渡す（正規化は utils.timeparse が担当）。
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from datetime import datetime, timedelta, timezone
+from importlib import resources
+
+JST = timezone(timedelta(hours=9))
+
+# update_record で書き換えを許可するカラム（任意キーの混入を防ぐ）
+_UPDATABLE = {"type", "sub_type", "amount", "unit", "started_at", "ended_at", "note"}
+
+
+def _now() -> str:
+    return datetime.now(JST).isoformat()
+
+
+def init_db(conn: sqlite3.Connection) -> None:
+    """スキーマを適用する（冪等）。"""
+    sql = resources.files("kotolog.db").joinpath("schema.sql").read_text(encoding="utf-8")
+    conn.executescript(sql)
+    conn.commit()
+
+
+def ensure_child(conn: sqlite3.Connection, name_alias: str) -> int:
+    """別名の子を取得（無ければ作成）して id を返す。"""
+    row = conn.execute(
+        "SELECT id FROM children WHERE name_alias = ?", (name_alias,)
+    ).fetchone()
+    if row is not None:
+        return row["id"]
+    cur = conn.execute(
+        "INSERT INTO children (name_alias) VALUES (?)", (name_alias,)
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def insert_record(
+    conn: sqlite3.Connection,
+    *,
+    child_id: int,
+    type: str,
+    started_at: str,
+    sub_type: str | None = None,
+    amount: float | None = None,
+    unit: str | None = None,
+    ended_at: str | None = None,
+    note: str | None = None,
+) -> int:
+    now = _now()
+    cur = conn.execute(
+        """
+        INSERT INTO records
+            (child_id, type, sub_type, amount, unit,
+             started_at, ended_at, note, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (child_id, type, sub_type, amount, unit,
+         started_at, ended_at, note, now, now),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def get_record(conn: sqlite3.Connection, record_id: int) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT * FROM records WHERE id = ?", (record_id,)
+    ).fetchone()
+
+
+def get_last_record(conn: sqlite3.Connection, child_id: int) -> sqlite3.Row | None:
+    """最も新しい started_at の記録（「さっき」の対象）。"""
+    return conn.execute(
+        """
+        SELECT * FROM records
+        WHERE child_id = ?
+        ORDER BY started_at DESC, id DESC
+        LIMIT 1
+        """,
+        (child_id,),
+    ).fetchone()
+
+
+def query_records(
+    conn: sqlite3.Connection,
+    *,
+    child_id: int,
+    start: str,
+    end: str,
+    type: str | None = None,
+) -> list[sqlite3.Row]:
+    """期間 [start, end] と任意の種別で記録を取得する。"""
+    sql = [
+        "SELECT * FROM records",
+        "WHERE child_id = ? AND started_at >= ? AND started_at <= ?",
+    ]
+    params: list = [child_id, start, end]
+    if type is not None:
+        sql.append("AND type = ?")
+        params.append(type)
+    sql.append("ORDER BY started_at ASC, id ASC")
+    return conn.execute("\n".join(sql), params).fetchall()
+
+
+def update_record(
+    conn: sqlite3.Connection, record_id: int, new_values: dict
+) -> bool:
+    """指定カラムを更新する。許可外キーは無視。更新があれば True。"""
+    fields = {k: v for k, v in new_values.items() if k in _UPDATABLE}
+    if not fields:
+        return False
+    set_clause = ", ".join(f"{k} = ?" for k in fields)
+    params = [*fields.values(), _now(), record_id]
+    cur = conn.execute(
+        f"UPDATE records SET {set_clause}, updated_at = ? WHERE id = ?", params
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def delete_record(conn: sqlite3.Connection, record_id: int) -> bool:
+    cur = conn.execute("DELETE FROM records WHERE id = ?", (record_id,))
+    conn.commit()
+    return cur.rowcount > 0
