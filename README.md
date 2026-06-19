@@ -192,6 +192,91 @@ Forwarding   https://abcd-1234.ngrok-free.app -> http://localhost:8000
 返信: 今日は授乳1回（120ml）でした。
 ```
 
+## P3 デプロイ準備手順（Render + Turso + Claude）
+
+ローカル依存をすべてクラウドに移して「PC なしで 24 時間動く」状態にする。
+実装（Dockerfile・libsql対応・コード変更）は実際の P3 作業で行う。
+ここでは**アカウント作成と認証情報の取得**だけを先に済ませる。
+
+### Step A: Turso — クラウド DB を作る
+
+Turso は SQLite 互換のクラウド DB。ローカルの `kotolog.db` をそのまま置き換える。
+
+```bash
+# Turso CLI をインストール
+brew install tursodatabase/tap/turso
+
+# アカウント作成・ログイン（GitHubアカウントでOK）
+turso auth login
+
+# DB を作成（名前は任意）
+turso db create koto-log
+
+# 接続URLを確認
+turso db show koto-log --url
+# → libsql://koto-log-xxxx.turso.io  ← KOTOLOG_DB_URL に設定する値
+
+# 認証トークンを発行
+turso db tokens create koto-log
+# → eyJh...  ← TURSO_AUTH_TOKEN に設定する値
+```
+
+取得したら `.env` に追記：
+```
+KOTOLOG_DB_URL=libsql://koto-log-xxxx.turso.io
+TURSO_AUTH_TOKEN=eyJh...
+```
+
+> 無料プランで DB 1つ・月500M行読み取りまで。個人利用には十分。
+
+### Step B: Anthropic API キー — Claude Haiku に切り替える
+
+```bash
+# ローカルでも先に動作確認できる
+KOTOLOG_MODEL=claude-3-5-haiku-latest \
+KOTOLOG_API_KEY=sk-ant-... \
+uv run kotolog
+```
+
+取得場所: [https://console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys)
+
+`.env` に追記：
+```
+KOTOLOG_MODEL=claude-3-5-haiku-latest
+KOTOLOG_API_KEY=sk-ant-...
+```
+
+### Step C: Render — アプリをデプロイする
+
+Render は「GitHub リポジトリを連携してボタン1つでデプロイ」できる PaaS。
+ngrok は不要になり、固定の公開 URL が発行される。
+
+1. [https://render.com](https://render.com) でアカウント作成（GitHubログイン可）
+2. GitHub リポジトリを連携しておく（このリポジトリを public にするか、Render に private アクセスを許可）
+3. 「New Web Service」→ リポジトリを選択
+
+Render には `render.yaml` を置くと設定が自動で読み込まれる（P3 作業で追加予定）。
+
+**デプロイ後に Render の環境変数として設定するもの：**
+
+| 変数 | 値 |
+|---|---|
+| `KOTOLOG_MODEL` | `claude-3-5-haiku-latest` |
+| `KOTOLOG_API_KEY` | Anthropic API キー |
+| `KOTOLOG_DB_URL` | Turso の libsql URL |
+| `TURSO_AUTH_TOKEN` | Turso の認証トークン |
+| `LINE_CHANNEL_SECRET` | LINE チャネルシークレット |
+| `LINE_CHANNEL_ACCESS_TOKEN` | LINE アクセストークン |
+
+**デプロイ完了後に LINE の Webhook URL を更新：**
+```
+https://<your-app>.onrender.com/webhook
+```
+（ngrok の URL の代わりにこれを LINE Dev Console に設定する）
+
+> スリープ問題: 無料プランは15分アイドルでスリープ。LINE から使うなら月$7の
+> Starter プランを推奨（常時起動）。
+
 ## 設定（環境変数）
 
 | 変数 | 既定 | 説明 |
@@ -199,7 +284,8 @@ Forwarding   https://abcd-1234.ngrok-free.app -> http://localhost:8000
 | `KOTOLOG_MODEL` | `ollama_chat/qwen2.5:7b` | LiteLLM のモデル文字列。本番例: `claude-3-5-haiku-latest` |
 | `KOTOLOG_API_KEY` | （空） | ホスト型モデル用 APIキー（ローカルでは不要） |
 | `KOTOLOG_OLLAMA_BASE` | `http://localhost:11434` | Ollama のベースURL（ローカル時のみ使用） |
-| `KOTOLOG_DB_URL` | `kotolog.db` | DB URL。本番例: `libsql://...turso.io` |
+| `KOTOLOG_DB_URL` | `kotolog.db` | DB URL。本番（Turso）例: `libsql://koto-log-xxxx.turso.io` |
+| `TURSO_AUTH_TOKEN` | （空） | Turso 接続トークン（本番のみ必要） |
 | `KOTOLOG_DEFAULT_CHILD` | `baby` | 子の別名（実名は保持しない方針） |
 | `LINE_CHANNEL_SECRET` | （必須: LINE利用時） | LINE チャネルシークレット（署名検証に使用） |
 | `LINE_CHANNEL_ACCESS_TOKEN` | （必須: LINE利用時） | LINE チャネルアクセストークン（Reply API に使用） |
@@ -243,8 +329,8 @@ KOTOLOG_MODEL=claude-3-5-haiku-latest uv run python evals/tool_selection.py
 |---|---|---|
 | P1 Core (CLI) | 記録・集計・修正・確認サマリ | ✅ 完了 |
 | P1.5 MVP+ | 集計強化・sub_type正規化・前回いつ・まとめ | ✅ 完了 |
-| P2 LINE | Webhook・署名検証・冪等化・Reply API | 🔨 実装済み（ngrok実機確認が残り）|
-| P3 Deploy | コンテナ化＋Cloud Run/Render＋Turso＋Claude切替 | 未着手 |
+| P2 LINE | Webhook・署名検証・冪等化・Reply API | ✅ 完了 |
+| P3 Deploy | Dockerfile + Render デプロイ + Turso + Claude Haiku 切替 | 未着手 |
 | P4 Enhance | 所見・リマインダー・グラフ等 | 任意 |
 
 詳細なタスク分解は [開発計画.md](開発計画.md) を参照。
