@@ -19,6 +19,7 @@ def _cfg(model: str, api_key: str | None = None) -> Config:
         line_channel_secret=None,
         line_channel_access_token=None,
         turso_auth_token=None,
+        dashboard_token=None,
     )
 
 

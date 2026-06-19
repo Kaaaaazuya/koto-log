@@ -22,3 +22,5 @@ services:
       # その他
       - key: KOTOLOG_DEFAULT_CHILD
         value: baby
+      - key: KOTOLOG_DASHBOARD_TOKEN
+        sync: false

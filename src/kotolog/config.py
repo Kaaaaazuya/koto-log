@@ -27,6 +27,7 @@ class Config:
     line_channel_secret: str | None
     line_channel_access_token: str | None
     turso_auth_token: str | None
+    dashboard_token: str | None
 
 
 def load_config() -> Config:
@@ -42,4 +43,5 @@ def load_config() -> Config:
         line_channel_secret=os.getenv("LINE_CHANNEL_SECRET") or None,
         line_channel_access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN") or None,
         turso_auth_token=os.getenv("TURSO_AUTH_TOKEN") or None,
+        dashboard_token=os.getenv("KOTOLOG_DASHBOARD_TOKEN") or None,
     )

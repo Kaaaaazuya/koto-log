@@ -17,10 +17,12 @@ from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 
 from kotolog.db import crud
+from kotolog.line.dashboard import router as dashboard_router
 
 load_dotenv()
 
 app = FastAPI()
+app.include_router(dashboard_router)
 
 _HELP_COMMANDS = {"操作一覧", "help", "ヘルプ", "?", "？"}
 
