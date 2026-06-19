@@ -5,30 +5,36 @@
 聞けば集計して返す。中核は LLM の **Tool Use**：入力に応じて LLM が「どのツールを・
 どの引数で呼ぶか」を判断し、アプリ側のコードが DB を更新・参照する。
 
-> ステータス: **MVP（CLI で記録・集計・修正・取り消しが動作）**。LINE 連携・本番
-> デプロイは未実装（[ロードマップ](#ロードマップ)参照）。設計は
-> [育児記録エージェント_DesignDoc.md] / [開発計画.md](開発計画.md) を参照。
+> ステータス: **P2 実装中（Webhook・冪等化・Reply API 配線完了。ngrok 実機確認が次のステップ）**。
+> 設計は [育児記録エージェント_DesignDoc.md] / [開発計画.md](開発計画.md) を参照。
 
 ## できること（現状）
 
 - 自由文を解釈して `feeding / sleep / diaper` を構造化保存（例: 「3時にミルク120ml」）
-- 期間・種別を指定した集計に応答（例: 「今日は何回飲んだ？」）
+- 期間・種別・サブ種別を指定した集計に応答（例: 「今日は何回飲んだ？」「母乳は何回？」）
+- 「今日のまとめ」「前回の授乳はいつ？」などの振り返りクエリ
 - 直近記録の修正・取り消し（例: 「150に直して」「さっきのなし」）
 - 書き込み後は確認サマリを返し、情報不足なら聞き返す
 - ローカルLLM（Ollama）で完全無料動作。`KOTOLOG_MODEL` の変更だけで Claude へ切替可能
+- LINE Messaging API Webhook の受信・署名検証・冪等化・返信（P2 配線完了）
 
 ## アーキテクチャ
 
 ```
-ユーザー入力（現状: CLI）
-        │
-        ▼
-   Agent ループ（agent/loop.py）
-     ├─ LLM クライアント（llm/client.py, LiteLLM: local⇄Claude 切替）
-     └─ ツール実行（tools/executor.py）: save / query / update_or_delete
-        │   └─ 時刻正規化（utils/timeparse.py）: 「さっき/3時/お昼」→ JST絶対時刻
-        ▼
-     DB（db/, SQLite。本番は Turso/libSQL を想定）
+LINE App ─── POST /webhook ──▶ FastAPI (line/webhook.py)
+                                  │ 署名検証 (HMAC-SHA256)
+                                  │ 冪等化 (processed_events)
+                                  ▼ BackgroundTask
+CLI (cli.py) ──────────────▶ Agent ループ (agent/loop.py)
+                                  ├─ LLM クライアント (llm/client.py, LiteLLM)
+                                  └─ ツール実行 (tools/executor.py)
+                                       ├─ save / query / update_or_delete
+                                       ├─ 時刻正規化 (utils/timeparse.py)
+                                       └─ sub_type 正規化 (utils/subtype.py)
+                                  ▼
+                               SQLite DB (db/)
+                                  │
+                               Reply API (line/reply.py) ──▶ LINE App
 ```
 
 LLM はツールを「選ぶ」だけ。実際の DB 操作・時刻解決はアプリ側コードが行うため、
@@ -38,18 +44,23 @@ LLM はツールを「選ぶ」だけ。実際の DB 操作・時刻解決はア
 
 ```
 src/kotolog/
-├── config.py          # .env からの設定読込（model/APIキー/DB URL）
-├── db/                # connection・crud・schema.sql（children/records/sessions）
-├── utils/timeparse.py # 相対時刻 → JST絶対時刻
-├── tools/             # definitions(JSONスキーマ) / executor(DB操作マッピング)
-├── llm/client.py      # LiteLLM ラッパ（local⇄Claude）
-├── agent/loop.py      # tool-use ループ＋確認サマリ＋フォールバック
-└── cli.py             # 対話CLI エントリ
-evals/tool_selection.py # ツール選択の正答率を測る評価スクリプト
-tests/                 # unit / integration / e2e
+├── config.py           # .env からの設定読込
+├── db/                 # connection・crud・schema.sql
+├── utils/
+│   ├── timeparse.py    # 相対時刻 → JST絶対時刻
+│   └── subtype.py      # sub_type 表記ゆれ正規化
+├── tools/              # definitions(JSONスキーマ) / executor(DB操作)
+├── llm/client.py       # LiteLLM ラッパ（local⇄Claude）
+├── agent/loop.py       # tool-use ループ＋フォールバック解析
+├── line/
+│   ├── webhook.py      # FastAPI app / 署名検証 / 冪等化 / イベント配線
+│   └── reply.py        # LINE Reply API クライアント
+└── cli.py              # 対話CLI エントリ（LINE と同じ Agent を共有）
+evals/tool_selection.py # ツール選択の正答率評価スクリプト
+tests/                  # unit / integration / e2e
 ```
 
-## セットアップ
+## セットアップ（CLI）
 
 ### 前提
 - [uv](https://docs.astral.sh/uv/)（パッケージ管理）
@@ -61,13 +72,13 @@ tests/                 # unit / integration / e2e
 # 1. 依存をインストール
 uv sync
 
-# 2. Ollama を Docker で起動（モデルは docker_ollama ボリュームを共有）
+# 2. Ollama を Docker で起動
 docker run -d --name kotolog-ollama -p 11434:11434 \
   -v docker_ollama:/root/.ollama ollama/ollama:latest
-docker exec kotolog-ollama ollama pull qwen2.5:7b   # 未取得の場合
+docker exec kotolog-ollama ollama pull qwen2.5:7b
 
 # 3. 設定ファイルを用意
-cp .env.example .env        # 必要に応じて編集
+cp .env.example .env   # 必要に応じて編集
 
 # 4. 起動
 uv run kotolog
@@ -81,6 +92,91 @@ koto-log CLI (model=ollama_chat/qwen2.5:7b) — 終了は Ctrl-D / 'quit'
 今日は1回、合計120mlです。
 ```
 
+## LINE 実機確認（T2.4）の準備手順
+
+ngrok でローカルサーバを公開し、スマホの LINE から記録・集計できるようにする。
+
+### Step 1: LINE チャネルを作成する
+
+1. [LINE Developers Console](https://developers.line.biz/console/) にアクセス（LINE アカウントでログイン）
+2. 「新規プロバイダー作成」→ 任意の名前を入力
+3. 「チャネル作成」→「Messaging API」を選択
+4. チャネル名・説明・カテゴリを入力して作成
+
+チャネル作成後に取得するもの：
+
+| 取得場所 | 値 | .env に設定する変数 |
+|---|---|---|
+| 「チャネル基本設定」タブ → チャネルシークレット | `xxxx...` | `LINE_CHANNEL_SECRET` |
+| 「Messaging API設定」タブ → チャネルアクセストークン（長期）→「発行」 | `xxxx...` | `LINE_CHANNEL_ACCESS_TOKEN` |
+
+**Messaging API設定タブで必ず変更する設定：**
+- 「Webhook使用」→ **オン**
+- 「自動応答メッセージ」→ **オフ**（LINE 公式の自動返信と競合するため）
+- 「あいさつメッセージ」→ オフ推奨
+
+### Step 2: ngrok をインストール・設定する
+
+```bash
+# macOS（Homebrew）
+brew install ngrok
+
+# アカウント登録（無料）後にトークンを設定
+# https://dashboard.ngrok.com/get-started/your-authtoken
+ngrok config add-authtoken <your-authtoken>
+```
+
+### Step 3: .env を設定する
+
+```bash
+cp .env.example .env
+```
+
+`.env` に以下を追記：
+
+```
+LINE_CHANNEL_SECRET=<Step 1 で取得したシークレット>
+LINE_CHANNEL_ACCESS_TOKEN=<Step 1 で発行したアクセストークン>
+```
+
+### Step 4: サーバ起動 → ngrok でトンネル
+
+**ターミナル 1**（サーバ起動）:
+
+```bash
+uv run uvicorn kotolog.line.webhook:app --reload --port 8000
+```
+
+**ターミナル 2**（ngrok でトンネル）:
+
+```bash
+ngrok http 8000
+```
+
+出力例:
+```
+Forwarding   https://abcd-1234.ngrok-free.app -> http://localhost:8000
+```
+
+### Step 5: LINE の Webhook URL を設定する
+
+1. LINE Developers Console → 「Messaging API設定」タブ
+2. Webhook URL に `https://abcd-1234.ngrok-free.app/webhook` を入力
+3. 「更新」→「検証」ボタンを押して 200 OK が返ることを確認
+
+### Step 6: スマホで友だち追加して動作確認
+
+- 「Messaging API設定」タブの QR コードをスマホで読み込んで友だち追加
+- LINE でメッセージを送ると返信が届くことを確認
+
+```
+送信: 3時にミルク120ml飲んだ
+返信: ミルク120mlを3時に記録しました。
+
+送信: 今日のまとめは？
+返信: 今日は授乳1回（120ml）でした。
+```
+
 ## 設定（環境変数）
 
 | 変数 | 既定 | 説明 |
@@ -90,34 +186,28 @@ koto-log CLI (model=ollama_chat/qwen2.5:7b) — 終了は Ctrl-D / 'quit'
 | `KOTOLOG_OLLAMA_BASE` | `http://localhost:11434` | Ollama のベースURL（ローカル時のみ使用） |
 | `KOTOLOG_DB_URL` | `kotolog.db` | DB URL。本番例: `libsql://...turso.io` |
 | `KOTOLOG_DEFAULT_CHILD` | `baby` | 子の別名（実名は保持しない方針） |
+| `LINE_CHANNEL_SECRET` | （必須: LINE利用時） | LINE チャネルシークレット（署名検証に使用） |
+| `LINE_CHANNEL_ACCESS_TOKEN` | （必須: LINE利用時） | LINE チャネルアクセストークン（Reply API に使用） |
 
 ## テスト
 
-3 層に分けて配置し、フォルダから対応マーカー（`unit`/`integration`/`e2e`）を自動付与する。
+3 層に分けて配置し、フォルダから対応マーカーを自動付与する。
 
 | 層 | 置き場所 | 内容 |
 |---|---|---|
-| 単体 (unit) | `tests/unit/` | 純ロジック。DB/ネットワーク非依存（config・時刻正規化・LLMラッパはモック） |
-| 結合 (integration) | `tests/integration/` | 実DB・複数コンポーネント結線（CRUD・executor・agentループ・CLI結線） |
+| 単体 (unit) | `tests/unit/` | 純ロジック。DB/ネットワーク非依存 |
+| 結合 (integration) | `tests/integration/` | 実DB・複数コンポーネント結線（CRUD・executor・LINE webhook）|
 | E2E (e2e) | `tests/e2e/` | 入口からの一気通し（決定論版＋実Ollama版） |
 
 ```bash
 uv run pytest                 # 高速スイート（live は自動スキップ）
-uv run pytest -m unit         # 層を選んで実行
+uv run pytest -m unit
 uv run pytest -m integration
 uv run pytest -m e2e
 uv run pytest -m live         # 実Ollama E2E（要・Ollama起動）
 ```
 
-- `e2e/test_cli_flow.py` … LLM のみ FakeLLM に差し替え、保存→集計→修正→取消を
-  ファイルDB相手に一気通し。モデル非依存で安定して緑。
-- `e2e/test_live_ollama.py` … 実モデル込みで配線を確認するスモークテスト。Ollama
-  未起動なら自動スキップ。`-m live` 指定時のみ実行。
-
-### ツール選択の評価（モデル品質の定量化）
-
-テストは「配線が正しいか」を見る。一方、**実モデルがどれだけ正しくツールを選べるか**
-は非決定論的なので、別途スクリプトで正答率を測る:
+### ツール選択の評価
 
 ```bash
 uv run python evals/tool_selection.py            # 既定 3 回/シナリオ
@@ -127,17 +217,18 @@ KOTOLOG_MODEL=claude-3-5-haiku-latest uv run python evals/tool_selection.py
 ## 既知の制約
 
 - **ローカル qwen2.5:7b のツール選択精度は約 57%**（`evals/` 計測）。特に短い保存系
-  発話（「9時に寝た」等）で tool-call 出力が崩れることがある。本番想定の Claude へ
-  切替で改善する見込み。安定性が必要ならローカルは 14B 以上の検討を。
+  発話で tool-call 出力が崩れることがある。本番想定の Claude へ切替で改善する見込み。
 - `update_or_delete_record` の対象は現状「直近記録(last)」のみ。
 - 個人利用前提。多ユーザー・認証・課金は非対応。
+- LINE 連携時の LLM 呼び出しは BackgroundTask で同期実行（シングルユーザー前提）。
 
 ## ロードマップ
 
 | フェーズ | 内容 | 状態 |
 |---|---|---|
-| P1 Core (CLI) | 記録・集計・修正・確認サマリ | ✅ 完了（= 本MVP） |
-| P2 LINE | Webhook＋署名検証＋冪等化＋Reply | 未着手 |
+| P1 Core (CLI) | 記録・集計・修正・確認サマリ | ✅ 完了 |
+| P1.5 MVP+ | 集計強化・sub_type正規化・前回いつ・まとめ | ✅ 完了 |
+| P2 LINE | Webhook・署名検証・冪等化・Reply API | 🔨 実装済み（ngrok実機確認が残り）|
 | P3 Deploy | コンテナ化＋Cloud Run/Render＋Turso＋Claude切替 | 未着手 |
 | P4 Enhance | 所見・リマインダー・グラフ等 | 任意 |
 
