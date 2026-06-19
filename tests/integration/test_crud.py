@@ -52,6 +52,19 @@ def test_get_last_record(conn):
     assert last["type"] == "diaper"
 
 
+def test_get_last_record_filtered_by_type(conn):
+    child_id = crud.ensure_child(conn, "baby")
+    crud.insert_record(
+        conn, child_id=child_id, type="feeding", started_at="2026-06-18T07:00:00+09:00"
+    )
+    crud.insert_record(
+        conn, child_id=child_id, type="diaper", started_at="2026-06-18T09:00:00+09:00"
+    )
+    last_feeding = crud.get_last_record(conn, child_id, type="feeding")
+    assert last_feeding["type"] == "feeding"
+    assert last_feeding["started_at"] == "2026-06-18T07:00:00+09:00"
+
+
 def test_query_records_by_type_and_period(conn):
     child_id = crud.ensure_child(conn, "baby")
     crud.insert_record(
@@ -81,6 +94,28 @@ def test_query_records_by_type_and_period(conn):
     )
     assert len(rows) == 2
     assert {r["amount"] for r in rows} == {100, 120}
+
+
+def test_query_records_filters_by_sub_type(conn):
+    child_id = crud.ensure_child(conn, "baby")
+    crud.insert_record(
+        conn, child_id=child_id, type="feeding", sub_type="母乳",
+        started_at="2026-06-18T03:00:00+09:00",
+    )
+    crud.insert_record(
+        conn, child_id=child_id, type="feeding", sub_type="ミルク",
+        started_at="2026-06-18T05:00:00+09:00",
+    )
+    rows = crud.query_records(
+        conn,
+        child_id=child_id,
+        type="feeding",
+        sub_type="ミルク",
+        start="2026-06-18T00:00:00+09:00",
+        end="2026-06-18T23:59:59+09:00",
+    )
+    assert len(rows) == 1
+    assert rows[0]["sub_type"] == "ミルク"
 
 
 def test_update_record(conn):

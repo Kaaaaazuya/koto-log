@@ -73,17 +73,17 @@ def get_record(conn: sqlite3.Connection, record_id: int) -> sqlite3.Row | None:
     ).fetchone()
 
 
-def get_last_record(conn: sqlite3.Connection, child_id: int) -> sqlite3.Row | None:
-    """最も新しい started_at の記録（「さっき」の対象）。"""
-    return conn.execute(
-        """
-        SELECT * FROM records
-        WHERE child_id = ?
-        ORDER BY started_at DESC, id DESC
-        LIMIT 1
-        """,
-        (child_id,),
-    ).fetchone()
+def get_last_record(
+    conn: sqlite3.Connection, child_id: int, type: str | None = None
+) -> sqlite3.Row | None:
+    """最も新しい started_at の記録（「さっき」「前回の◯◯」の対象）。"""
+    sql = ["SELECT * FROM records", "WHERE child_id = ?"]
+    params: list = [child_id]
+    if type is not None:
+        sql.append("AND type = ?")
+        params.append(type)
+    sql.append("ORDER BY started_at DESC, id DESC LIMIT 1")
+    return conn.execute("\n".join(sql), params).fetchone()
 
 
 def query_records(
@@ -93,8 +93,9 @@ def query_records(
     start: str,
     end: str,
     type: str | None = None,
+    sub_type: str | None = None,
 ) -> list[sqlite3.Row]:
-    """期間 [start, end] と任意の種別で記録を取得する。"""
+    """期間 [start, end] と任意の種別・サブ種別で記録を取得する。"""
     sql = [
         "SELECT * FROM records",
         "WHERE child_id = ? AND started_at >= ? AND started_at <= ?",
@@ -103,6 +104,9 @@ def query_records(
     if type is not None:
         sql.append("AND type = ?")
         params.append(type)
+    if sub_type is not None:
+        sql.append("AND sub_type = ?")
+        params.append(sub_type)
     sql.append("ORDER BY started_at ASC, id ASC")
     return conn.execute("\n".join(sql), params).fetchall()
 

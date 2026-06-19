@@ -11,6 +11,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 
 from kotolog.db import crud
+from kotolog.utils.subtype import normalize_sub_type
 from kotolog.utils.timeparse import normalize
 
 JST = timezone(timedelta(hours=9))
@@ -21,6 +22,20 @@ _TIME_KEYS = ("started_at", "ended_at")
 
 def _record_to_dict(row: sqlite3.Row | None) -> dict | None:
     return dict(row) if row is not None else None
+
+
+def _aggregate(rows: list[sqlite3.Row], key: str) -> dict:
+    """rows を key（type / sub_type）ごとに件数・合計でまとめる。None キーは除外。"""
+    out: dict[str, dict] = {}
+    for r in rows:
+        k = r[key]
+        if k is None:
+            continue
+        bucket = out.setdefault(k, {"count": 0, "total_amount": 0})
+        bucket["count"] += 1
+        if r["amount"] is not None:
+            bucket["total_amount"] += r["amount"]
+    return out
 
 
 class ToolExecutor:
@@ -49,11 +64,12 @@ class ToolExecutor:
         ended_at = (
             normalize(args["ended_at"], now=self.now) if args.get("ended_at") else None
         )
+        sub_type = normalize_sub_type(args["type"], args.get("sub_type"))
         rid = crud.insert_record(
             self.conn,
             child_id=self.child_id,
             type=args["type"],
-            sub_type=args.get("sub_type"),
+            sub_type=sub_type,
             amount=args.get("amount"),
             unit=args.get("unit"),
             started_at=started_at,
@@ -64,23 +80,50 @@ class ToolExecutor:
 
     # --- query --------------------------------------------------------------
     def _query_records(self, args: dict) -> dict:
+        type_filter = args.get("type")
+        if args["period"] == "latest":
+            return self._latest(type_filter)
         start, end = self._resolve_period(args["period"])
+        sub_type_filter = (
+            normalize_sub_type(type_filter, args["sub_type"])
+            if args.get("sub_type")
+            else None
+        )
         rows = crud.query_records(
             self.conn,
             child_id=self.child_id,
             start=start,
             end=end,
-            type=args.get("type"),
+            type=type_filter,
+            sub_type=sub_type_filter,
         )
         total = sum(r["amount"] for r in rows if r["amount"] is not None)
         return {
             "ok": True,
             "action": "query",
             "period": args["period"],
-            "type": args.get("type"),
+            "type": type_filter,
+            "sub_type": sub_type_filter,
             "count": len(rows),
             "total_amount": total,
+            "by_type": _aggregate(rows, "type"),
+            "by_sub_type": _aggregate(rows, "sub_type"),
             "records": [dict(r) for r in rows],
+        }
+
+    def _latest(self, type_filter: str | None) -> dict:
+        """直近1件と経過時間（分/時間）を返す（「前回の◯◯いつ？」用）。"""
+        rec = crud.get_last_record(self.conn, self.child_id, type=type_filter)
+        if rec is None:
+            return {"ok": False, "action": "latest", "type": type_filter, "reason": "no_record"}
+        elapsed_min = (self.now - datetime.fromisoformat(rec["started_at"])).total_seconds() / 60
+        return {
+            "ok": True,
+            "action": "latest",
+            "type": type_filter,
+            "record": _record_to_dict(rec),
+            "elapsed_minutes": int(elapsed_min),
+            "elapsed_hours": round(elapsed_min / 60, 1),
         }
 
     # --- update / delete ----------------------------------------------------

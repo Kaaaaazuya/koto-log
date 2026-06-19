@@ -8,7 +8,8 @@ LiteLLM/OpenAI 互換の tools スキーマ。enum・必須でできるだけ厳
 from __future__ import annotations
 
 RECORD_TYPES = ["feeding", "sleep", "diaper", "temp"]
-PERIODS = ["today", "yesterday", "last_24h", "last_7days"]
+# latest は「前回の◯◯はいつ？」用：直近1件＋経過時間を返す
+PERIODS = ["today", "yesterday", "last_24h", "last_7days", "latest"]
 
 TOOLS = [
     {
@@ -57,10 +58,14 @@ TOOLS = [
                         "enum": RECORD_TYPES,
                         "description": "絞り込む種別。省略時は全種別。",
                     },
+                    "sub_type": {
+                        "type": "string",
+                        "description": "絞り込むサブ種別（母乳/ミルク/うんち 等）。省略可。",
+                    },
                     "period": {
                         "type": "string",
                         "enum": PERIODS,
-                        "description": "集計期間。",
+                        "description": "集計期間。『前回はいつ？』には latest（直近1件＋経過時間）を使う。",
                     },
                 },
                 "required": ["period"],
