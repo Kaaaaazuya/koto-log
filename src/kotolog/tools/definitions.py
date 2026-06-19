@@ -7,7 +7,9 @@ LiteLLM/OpenAI 互換の tools スキーマ。enum・必須でできるだけ厳
 
 from __future__ import annotations
 
-RECORD_TYPES = ["feeding", "sleep", "diaper", "temp"]
+from kotolog.types import RecordType
+
+RECORD_TYPES = [t.value for t in RecordType]
 # latest は「前回の◯◯はいつ？」用：直近1件＋経過時間を返す
 PERIODS = ["today", "yesterday", "last_24h", "last_7days", "latest"]
 

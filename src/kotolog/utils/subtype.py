@@ -7,17 +7,19 @@
 
 from __future__ import annotations
 
+from kotolog.types import DiaperSubType, FeedingSubType, RecordType
+
 # 種別ごとの「正規形 → 同義語」。
 _SYNONYMS: dict[str, dict[str, tuple[str, ...]]] = {
-    "feeding": {
-        "母乳": ("母乳", "おっぱい", "直母"),
-        "ミルク": ("ミルク", "粉ミルク", "人工乳"),
-        "搾母乳": ("搾母乳", "搾乳", "さく乳"),
+    RecordType.FEEDING: {
+        FeedingSubType.BREAST: ("母乳", "おっぱい", "直母"),
+        FeedingSubType.FORMULA: ("ミルク", "粉ミルク", "人工乳"),
+        FeedingSubType.PUMPED: ("搾母乳", "搾乳", "さく乳"),
     },
-    "diaper": {
-        "うんち": ("うんち", "うんP", "うんp", "便", "排便", "うんこ"),
-        "おしっこ": ("おしっこ", "尿"),
-        "両方": ("両方", "うんちとおしっこ"),
+    RecordType.DIAPER: {
+        DiaperSubType.POO: ("うんち", "うんP", "うんp", "便", "排便", "うんこ"),
+        DiaperSubType.PEE: ("おしっこ", "尿"),
+        DiaperSubType.BOTH: ("両方", "うんちとおしっこ"),
     },
 }
 
