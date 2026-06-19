@@ -68,3 +68,30 @@ def test_full_conversation_persists_to_file_db(tmp_path, fake_llm, resp, tc):
     assert "取り消" in r4
     assert conn.execute("SELECT COUNT(*) AS n FROM records").fetchone()["n"] == 0
     conn.close()
+
+
+def test_daily_summary_narrates_from_aggregates(tmp_path, fake_llm, resp, tc):
+    """T1.10: 「今日のまとめ」が1回の query 集計(by_type)から文章化される。"""
+    conn = connect(str(tmp_path / "sum.db"))
+    crud.init_db(conn)
+    child_id = crud.ensure_child(conn, "baby")
+    executor = ToolExecutor(conn=conn, child_id=child_id, now=NOW)
+
+    executor.execute("save_record", {"type": "feeding", "amount": 120, "started_at": "3時"})
+    executor.execute("save_record", {"type": "feeding", "amount": 100, "started_at": "7時"})
+    executor.execute("save_record", {"type": "diaper", "started_at": "8時"})
+
+    llm = fake_llm([
+        resp(tool_calls=[tc("query_records", {"period": "today"})]),
+        resp(content="今日は授乳2回(220ml)、おむつ1回でした。"),
+    ])
+    agent = Agent(client=llm, executor=executor)
+
+    reply = agent.handle("今日のまとめは？")
+
+    assert "授乳" in reply
+    # 集計を1回の query で取得し、by_type が2手目のLLM入力に渡っている
+    tool_msgs = [m for m in llm.seen_messages[1] if m.get("role") == "tool"]
+    assert tool_msgs and '"by_type"' in tool_msgs[0]["content"]
+    assert '"feeding"' in tool_msgs[0]["content"]
+    conn.close()
