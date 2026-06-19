@@ -65,7 +65,7 @@ TOOLS = [
                     "period": {
                         "type": "string",
                         "enum": PERIODS,
-                        "description": "集計期間。『前回はいつ？』には latest（直近1件＋経過時間）を使う。",
+                        "description": "集計期間。『前回はいつ？』には latest を使う（直近1件＋経過時間）。",
                     },
                 },
                 "required": ["period"],

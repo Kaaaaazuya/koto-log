@@ -8,11 +8,19 @@ from kotolog.agent.loop import Agent
 
 
 def test_save_flow_returns_confirmation_and_writes_db(executor, conn, fake_llm, resp, tc):
-    llm = fake_llm([
-        resp(tool_calls=[tc("save_record",
-             {"type": "feeding", "amount": 120, "unit": "ml", "started_at": "3時"})]),
-        resp(content="ミルク120mlを3時に記録しました。"),
-    ])
+    llm = fake_llm(
+        [
+            resp(
+                tool_calls=[
+                    tc(
+                        "save_record",
+                        {"type": "feeding", "amount": 120, "unit": "ml", "started_at": "3時"},
+                    )
+                ]
+            ),
+            resp(content="ミルク120mlを3時に記録しました。"),
+        ]
+    )
     agent = Agent(client=llm, executor=executor)
 
     reply = agent.handle("3時にミルク120ml飲んだ")
@@ -27,10 +35,12 @@ def test_save_flow_returns_confirmation_and_writes_db(executor, conn, fake_llm, 
 def test_text_embedded_tool_call_is_recovered(executor, conn, fake_llm, resp):
     # tool_calls が空でも本文中の JSON ツール呼び出しを拾う（7Bの実失敗モード）
     content = 'leton\n{"name": "save_record", "arguments": {"type": "diaper", "started_at": "さっき"}}'
-    llm = fake_llm([
-        resp(content=content, tool_calls=None),
-        resp(content="おむつを記録しました。"),
-    ])
+    llm = fake_llm(
+        [
+            resp(content=content, tool_calls=None),
+            resp(content="おむつを記録しました。"),
+        ]
+    )
     agent = Agent(client=llm, executor=executor)
 
     reply = agent.handle("さっきおむつ替えた")
@@ -53,10 +63,12 @@ def test_clarification_returns_text_without_tool(executor, conn, fake_llm, resp)
 def test_query_flow_feeds_result_back(executor, fake_llm, resp, tc):
     executor.execute("save_record", {"type": "feeding", "amount": 100, "unit": "ml", "started_at": "3時"})
     executor.execute("save_record", {"type": "feeding", "amount": 120, "unit": "ml", "started_at": "7時"})
-    llm = fake_llm([
-        resp(tool_calls=[tc("query_records", {"type": "feeding", "period": "today"})]),
-        resp(content="今日は2回、合計220mlです。"),
-    ])
+    llm = fake_llm(
+        [
+            resp(tool_calls=[tc("query_records", {"type": "feeding", "period": "today"})]),
+            resp(content="今日は2回、合計220mlです。"),
+        ]
+    )
     agent = Agent(client=llm, executor=executor)
 
     reply = agent.handle("今日何回ミルク飲んだ？")
@@ -69,10 +81,12 @@ def test_query_flow_feeds_result_back(executor, fake_llm, resp, tc):
 
 
 def test_unknown_tool_is_handled_not_raised(executor, fake_llm, resp, tc):
-    llm = fake_llm([
-        resp(tool_calls=[tc("nope", {})]),
-        resp(content="すみません、その操作はできません。"),
-    ])
+    llm = fake_llm(
+        [
+            resp(tool_calls=[tc("nope", {})]),
+            resp(content="すみません、その操作はできません。"),
+        ]
+    )
     agent = Agent(client=llm, executor=executor)
 
     reply = agent.handle("何か変なこと")
@@ -82,10 +96,9 @@ def test_unknown_tool_is_handled_not_raised(executor, fake_llm, resp, tc):
 
 def test_loop_gives_up_after_max_iters(executor, fake_llm, resp, tc):
     # 毎回ツールを呼び続けるモデル → 上限で打ち切り、例外を出さない
-    llm = fake_llm([
-        resp(tool_calls=[tc("save_record", {"type": "feeding", "started_at": "今"})])
-        for _ in range(10)
-    ])
+    llm = fake_llm(
+        [resp(tool_calls=[tc("save_record", {"type": "feeding", "started_at": "今"})]) for _ in range(10)]
+    )
     agent = Agent(client=llm, executor=executor, max_iters=3)
 
     reply = agent.handle("ループ")

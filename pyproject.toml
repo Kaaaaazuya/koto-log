@@ -19,7 +19,14 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "pytest>=9.1.0",
+    "ruff>=0.15.18",
 ]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -111,11 +111,13 @@ class Agent:
             messages.append(self._assistant_message(message, calls))
             for call in calls:
                 result = self._run_tool(call)
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": call.id,
-                    "content": json.dumps(result, ensure_ascii=False, default=str),
-                })
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": json.dumps(result, ensure_ascii=False, default=str),
+                    }
+                )
 
         return "すみません、うまく処理できませんでした。もう一度お願いします。"
 
@@ -136,7 +138,10 @@ class Agent:
                 {
                     "id": c.id,
                     "type": "function",
-                    "function": {"name": c.name, "arguments": json.dumps(c.args, ensure_ascii=False)},
+                    "function": {
+                        "name": c.name,
+                        "arguments": json.dumps(c.args, ensure_ascii=False),
+                    },
                 }
                 for c in calls
             ],

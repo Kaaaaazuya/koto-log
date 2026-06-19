@@ -7,10 +7,7 @@ from kotolog.db import crud
 
 
 def test_init_db_creates_tables(conn):
-    names = {
-        row["name"]
-        for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    }
+    names = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {"children", "records", "sessions"} <= names
 
 
@@ -41,9 +38,7 @@ def test_insert_and_get_record(conn):
 
 def test_get_last_record(conn):
     child_id = crud.ensure_child(conn, "baby")
-    crud.insert_record(
-        conn, child_id=child_id, type="feeding", started_at="2026-06-18T01:00:00+09:00"
-    )
+    crud.insert_record(conn, child_id=child_id, type="feeding", started_at="2026-06-18T01:00:00+09:00")
     last_id = crud.insert_record(
         conn, child_id=child_id, type="diaper", started_at="2026-06-18T05:00:00+09:00"
     )
@@ -54,12 +49,8 @@ def test_get_last_record(conn):
 
 def test_get_last_record_filtered_by_type(conn):
     child_id = crud.ensure_child(conn, "baby")
-    crud.insert_record(
-        conn, child_id=child_id, type="feeding", started_at="2026-06-18T07:00:00+09:00"
-    )
-    crud.insert_record(
-        conn, child_id=child_id, type="diaper", started_at="2026-06-18T09:00:00+09:00"
-    )
+    crud.insert_record(conn, child_id=child_id, type="feeding", started_at="2026-06-18T07:00:00+09:00")
+    crud.insert_record(conn, child_id=child_id, type="diaper", started_at="2026-06-18T09:00:00+09:00")
     last_feeding = crud.get_last_record(conn, child_id, type="feeding")
     assert last_feeding["type"] == "feeding"
     assert last_feeding["started_at"] == "2026-06-18T07:00:00+09:00"
@@ -68,20 +59,34 @@ def test_get_last_record_filtered_by_type(conn):
 def test_query_records_by_type_and_period(conn):
     child_id = crud.ensure_child(conn, "baby")
     crud.insert_record(
-        conn, child_id=child_id, type="feeding", amount=100, unit="ml",
+        conn,
+        child_id=child_id,
+        type="feeding",
+        amount=100,
+        unit="ml",
         started_at="2026-06-18T03:00:00+09:00",
     )
     crud.insert_record(
-        conn, child_id=child_id, type="feeding", amount=120, unit="ml",
+        conn,
+        child_id=child_id,
+        type="feeding",
+        amount=120,
+        unit="ml",
         started_at="2026-06-18T07:00:00+09:00",
     )
     crud.insert_record(
-        conn, child_id=child_id, type="diaper",
+        conn,
+        child_id=child_id,
+        type="diaper",
         started_at="2026-06-18T08:00:00+09:00",
     )
     # 前日のミルクは範囲外
     crud.insert_record(
-        conn, child_id=child_id, type="feeding", amount=999, unit="ml",
+        conn,
+        child_id=child_id,
+        type="feeding",
+        amount=999,
+        unit="ml",
         started_at="2026-06-17T07:00:00+09:00",
     )
 
@@ -99,11 +104,17 @@ def test_query_records_by_type_and_period(conn):
 def test_query_records_filters_by_sub_type(conn):
     child_id = crud.ensure_child(conn, "baby")
     crud.insert_record(
-        conn, child_id=child_id, type="feeding", sub_type="母乳",
+        conn,
+        child_id=child_id,
+        type="feeding",
+        sub_type="母乳",
         started_at="2026-06-18T03:00:00+09:00",
     )
     crud.insert_record(
-        conn, child_id=child_id, type="feeding", sub_type="ミルク",
+        conn,
+        child_id=child_id,
+        type="feeding",
+        sub_type="ミルク",
         started_at="2026-06-18T05:00:00+09:00",
     )
     rows = crud.query_records(
@@ -121,7 +132,11 @@ def test_query_records_filters_by_sub_type(conn):
 def test_update_record(conn):
     child_id = crud.ensure_child(conn, "baby")
     rid = crud.insert_record(
-        conn, child_id=child_id, type="feeding", amount=100, unit="ml",
+        conn,
+        child_id=child_id,
+        type="feeding",
+        amount=100,
+        unit="ml",
         started_at="2026-06-18T03:00:00+09:00",
     )
     ok = crud.update_record(conn, rid, {"amount": 150})
@@ -131,9 +146,7 @@ def test_update_record(conn):
 
 def test_delete_record(conn):
     child_id = crud.ensure_child(conn, "baby")
-    rid = crud.insert_record(
-        conn, child_id=child_id, type="feeding", started_at="2026-06-18T03:00:00+09:00"
-    )
+    rid = crud.insert_record(conn, child_id=child_id, type="feeding", started_at="2026-06-18T03:00:00+09:00")
     assert crud.delete_record(conn, rid) is True
     assert crud.get_record(conn, rid) is None
     # 二重削除は False

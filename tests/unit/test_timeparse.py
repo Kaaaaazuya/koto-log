@@ -1,6 +1,6 @@
 """T1.2: 相対表現 → JST 絶対時刻 の正規化テスト。"""
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 from kotolog.utils.timeparse import normalize
 

@@ -102,9 +102,7 @@ def make_resp(content=None, tool_calls=None):
 
 def make_tc(name, args, id="call_1"):
     """ネイティブ tool_call を模した構造を作る。"""
-    return SimpleNamespace(
-        id=id, function=SimpleNamespace(name=name, arguments=json.dumps(args))
-    )
+    return SimpleNamespace(id=id, function=SimpleNamespace(name=name, arguments=json.dumps(args)))
 
 
 @pytest.fixture()

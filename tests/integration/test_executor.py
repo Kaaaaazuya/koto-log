@@ -11,8 +11,7 @@ from kotolog.db import crud
 def test_save_record_inserts_row(executor):
     result = executor.execute(
         "save_record",
-        {"type": "feeding", "sub_type": "ミルク", "amount": 120, "unit": "ml",
-         "started_at": "3時"},
+        {"type": "feeding", "sub_type": "ミルク", "amount": 120, "unit": "ml", "started_at": "3時"},
     )
     assert result["ok"] is True
     rec = crud.get_record(executor.conn, result["record"]["id"])
@@ -55,17 +54,13 @@ def test_update_normalizes_time_in_new_values(executor):
 def test_delete_last_record(executor):
     saved = executor.execute("save_record", {"type": "feeding", "started_at": "3時"})
     rid = saved["record"]["id"]
-    result = executor.execute(
-        "update_or_delete_record", {"target": "last", "action": "delete"}
-    )
+    result = executor.execute("update_or_delete_record", {"target": "last", "action": "delete"})
     assert result["ok"] is True
     assert crud.get_record(executor.conn, rid) is None
 
 
 def test_update_or_delete_with_no_record(executor):
-    result = executor.execute(
-        "update_or_delete_record", {"target": "last", "action": "delete"}
-    )
+    result = executor.execute("update_or_delete_record", {"target": "last", "action": "delete"})
     assert result["ok"] is False
 
 
@@ -76,9 +71,7 @@ def test_unknown_tool_raises(executor):
 
 # --- T1.8: 集計化・sub_type 正規化 -------------------------------------------
 def test_save_normalizes_sub_type(executor):
-    res = executor.execute(
-        "save_record", {"type": "feeding", "sub_type": "おっぱい", "started_at": "3時"}
-    )
+    res = executor.execute("save_record", {"type": "feeding", "sub_type": "おっぱい", "started_at": "3時"})
     rec = crud.get_record(executor.conn, res["record"]["id"])
     assert rec["sub_type"] == "母乳"
 
@@ -96,8 +89,13 @@ def test_query_returns_by_type_breakdown(executor):
 
 def test_query_returns_by_sub_type_breakdown(executor):
     executor.execute("save_record", {"type": "feeding", "sub_type": "母乳", "started_at": "3時"})
-    executor.execute("save_record", {"type": "feeding", "sub_type": "ミルク", "amount": 120, "started_at": "5時"})
-    executor.execute("save_record", {"type": "feeding", "sub_type": "粉ミルク", "amount": 100, "started_at": "7時"})
+    executor.execute(
+        "save_record", {"type": "feeding", "sub_type": "ミルク", "amount": 120, "started_at": "5時"}
+    )
+    executor.execute(
+        "save_record",
+        {"type": "feeding", "sub_type": "粉ミルク", "amount": 100, "started_at": "7時"},
+    )
 
     res = executor.execute("query_records", {"type": "feeding", "period": "today"})
 
@@ -107,13 +105,13 @@ def test_query_returns_by_sub_type_breakdown(executor):
 
 
 def test_query_sub_type_filter_normalizes(executor):
-    executor.execute("save_record", {"type": "feeding", "sub_type": "ミルク", "amount": 120, "started_at": "5時"})
+    executor.execute(
+        "save_record", {"type": "feeding", "sub_type": "ミルク", "amount": 120, "started_at": "5時"}
+    )
     executor.execute("save_record", {"type": "feeding", "sub_type": "母乳", "started_at": "3時"})
 
     # フィルタ値「粉ミルク」も正規化してから絞り込む
-    res = executor.execute(
-        "query_records", {"type": "feeding", "sub_type": "粉ミルク", "period": "today"}
-    )
+    res = executor.execute("query_records", {"type": "feeding", "sub_type": "粉ミルク", "period": "today"})
 
     assert res["count"] == 1
     assert res["sub_type"] == "ミルク"

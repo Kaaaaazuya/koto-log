@@ -61,9 +61,7 @@ class ToolExecutor:
     # --- save ---------------------------------------------------------------
     def _save_record(self, args: dict) -> dict:
         started_at = normalize(args["started_at"], now=self.now)
-        ended_at = (
-            normalize(args["ended_at"], now=self.now) if args.get("ended_at") else None
-        )
+        ended_at = normalize(args["ended_at"], now=self.now) if args.get("ended_at") else None
         sub_type = normalize_sub_type(args["type"], args.get("sub_type"))
         rid = crud.insert_record(
             self.conn,
@@ -76,7 +74,11 @@ class ToolExecutor:
             ended_at=ended_at,
             note=args.get("note"),
         )
-        return {"ok": True, "action": "save", "record": _record_to_dict(crud.get_record(self.conn, rid))}
+        return {
+            "ok": True,
+            "action": "save",
+            "record": _record_to_dict(crud.get_record(self.conn, rid)),
+        }
 
     # --- query --------------------------------------------------------------
     def _query_records(self, args: dict) -> dict:
@@ -84,11 +86,7 @@ class ToolExecutor:
         if args["period"] == "latest":
             return self._latest(type_filter)
         start, end = self._resolve_period(args["period"])
-        sub_type_filter = (
-            normalize_sub_type(type_filter, args["sub_type"])
-            if args.get("sub_type")
-            else None
-        )
+        sub_type_filter = normalize_sub_type(type_filter, args["sub_type"]) if args.get("sub_type") else None
         rows = crud.query_records(
             self.conn,
             child_id=self.child_id,
@@ -145,7 +143,11 @@ class ToolExecutor:
         updated = crud.update_record(self.conn, rid, new_values)
         if not updated:
             return {"ok": False, "reason": "no_change"}
-        return {"ok": True, "action": "update", "record": _record_to_dict(crud.get_record(self.conn, rid))}
+        return {
+            "ok": True,
+            "action": "update",
+            "record": _record_to_dict(crud.get_record(self.conn, rid)),
+        }
 
     # --- helpers ------------------------------------------------------------
     def _resolve_period(self, period: str) -> tuple[str, str]:

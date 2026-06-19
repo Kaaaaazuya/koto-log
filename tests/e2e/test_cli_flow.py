@@ -23,22 +23,36 @@ def test_full_conversation_persists_to_file_db(tmp_path, fake_llm, resp, tc):
     child_id = crud.ensure_child(conn, "baby")
     executor = ToolExecutor(conn=conn, child_id=child_id, now=NOW)
 
-    llm = fake_llm([
-        # 1) 保存
-        resp(tool_calls=[tc("save_record",
-             {"type": "feeding", "amount": 120, "unit": "ml", "started_at": "3時"})]),
-        resp(content="ミルク120mlを3時に記録しました。"),
-        # 2) 集計
-        resp(tool_calls=[tc("query_records", {"type": "feeding", "period": "today"})]),
-        resp(content="今日は1回、合計120mlです。"),
-        # 3) 修正
-        resp(tool_calls=[tc("update_or_delete_record",
-             {"target": "last", "action": "update", "new_values": {"amount": 150}})]),
-        resp(content="直近の記録を150mlに修正しました。"),
-        # 4) 取消
-        resp(tool_calls=[tc("update_or_delete_record", {"target": "last", "action": "delete"})]),
-        resp(content="直近の記録を取り消しました。"),
-    ])
+    llm = fake_llm(
+        [
+            # 1) 保存
+            resp(
+                tool_calls=[
+                    tc(
+                        "save_record",
+                        {"type": "feeding", "amount": 120, "unit": "ml", "started_at": "3時"},
+                    )
+                ]
+            ),
+            resp(content="ミルク120mlを3時に記録しました。"),
+            # 2) 集計
+            resp(tool_calls=[tc("query_records", {"type": "feeding", "period": "today"})]),
+            resp(content="今日は1回、合計120mlです。"),
+            # 3) 修正
+            resp(
+                tool_calls=[
+                    tc(
+                        "update_or_delete_record",
+                        {"target": "last", "action": "update", "new_values": {"amount": 150}},
+                    )
+                ]
+            ),
+            resp(content="直近の記録を150mlに修正しました。"),
+            # 4) 取消
+            resp(tool_calls=[tc("update_or_delete_record", {"target": "last", "action": "delete"})]),
+            resp(content="直近の記録を取り消しました。"),
+        ]
+    )
     agent = Agent(client=llm, executor=executor)
 
     # 1) 保存 → DBに1件
@@ -81,10 +95,12 @@ def test_daily_summary_narrates_from_aggregates(tmp_path, fake_llm, resp, tc):
     executor.execute("save_record", {"type": "feeding", "amount": 100, "started_at": "7時"})
     executor.execute("save_record", {"type": "diaper", "started_at": "8時"})
 
-    llm = fake_llm([
-        resp(tool_calls=[tc("query_records", {"period": "today"})]),
-        resp(content="今日は授乳2回(220ml)、おむつ1回でした。"),
-    ])
+    llm = fake_llm(
+        [
+            resp(tool_calls=[tc("query_records", {"period": "today"})]),
+            resp(content="今日は授乳2回(220ml)、おむつ1回でした。"),
+        ]
+    )
     agent = Agent(client=llm, executor=executor)
 
     reply = agent.handle("今日のまとめは？")

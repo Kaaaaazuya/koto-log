@@ -23,8 +23,7 @@ _SYNONYMS: dict[str, dict[str, tuple[str, ...]]] = {
 
 # 反転インデックス: {type: {同義語(小文字): 正規形}}
 _REVERSE: dict[str, dict[str, str]] = {
-    t: {syn.lower(): canon for canon, syns in table.items() for syn in syns}
-    for t, table in _SYNONYMS.items()
+    t: {syn.lower(): canon for canon, syns in table.items() for syn in syns} for t, table in _SYNONYMS.items()
 }
 
 

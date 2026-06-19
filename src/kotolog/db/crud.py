@@ -28,14 +28,10 @@ def init_db(conn: sqlite3.Connection) -> None:
 
 def ensure_child(conn: sqlite3.Connection, name_alias: str) -> int:
     """別名の子を取得（無ければ作成）して id を返す。"""
-    row = conn.execute(
-        "SELECT id FROM children WHERE name_alias = ?", (name_alias,)
-    ).fetchone()
+    row = conn.execute("SELECT id FROM children WHERE name_alias = ?", (name_alias,)).fetchone()
     if row is not None:
         return row["id"]
-    cur = conn.execute(
-        "INSERT INTO children (name_alias) VALUES (?)", (name_alias,)
-    )
+    cur = conn.execute("INSERT INTO children (name_alias) VALUES (?)", (name_alias,))
     conn.commit()
     return cur.lastrowid
 
@@ -60,22 +56,17 @@ def insert_record(
              started_at, ended_at, note, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (child_id, type, sub_type, amount, unit,
-         started_at, ended_at, note, now, now),
+        (child_id, type, sub_type, amount, unit, started_at, ended_at, note, now, now),
     )
     conn.commit()
     return cur.lastrowid
 
 
 def get_record(conn: sqlite3.Connection, record_id: int) -> sqlite3.Row | None:
-    return conn.execute(
-        "SELECT * FROM records WHERE id = ?", (record_id,)
-    ).fetchone()
+    return conn.execute("SELECT * FROM records WHERE id = ?", (record_id,)).fetchone()
 
 
-def get_last_record(
-    conn: sqlite3.Connection, child_id: int, type: str | None = None
-) -> sqlite3.Row | None:
+def get_last_record(conn: sqlite3.Connection, child_id: int, type: str | None = None) -> sqlite3.Row | None:
     """最も新しい started_at の記録（「さっき」「前回の◯◯」の対象）。"""
     sql = ["SELECT * FROM records", "WHERE child_id = ?"]
     params: list = [child_id]
@@ -111,18 +102,14 @@ def query_records(
     return conn.execute("\n".join(sql), params).fetchall()
 
 
-def update_record(
-    conn: sqlite3.Connection, record_id: int, new_values: dict
-) -> bool:
+def update_record(conn: sqlite3.Connection, record_id: int, new_values: dict) -> bool:
     """指定カラムを更新する。許可外キーは無視。更新があれば True。"""
     fields = {k: v for k, v in new_values.items() if k in _UPDATABLE}
     if not fields:
         return False
     set_clause = ", ".join(f"{k} = ?" for k in fields)
     params = [*fields.values(), _now(), record_id]
-    cur = conn.execute(
-        f"UPDATE records SET {set_clause}, updated_at = ? WHERE id = ?", params
-    )
+    cur = conn.execute(f"UPDATE records SET {set_clause}, updated_at = ? WHERE id = ?", params)
     conn.commit()
     return cur.rowcount > 0
 
