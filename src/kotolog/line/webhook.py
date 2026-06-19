@@ -13,9 +13,12 @@ import hmac
 import json
 import os
 
+from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 
 from kotolog.db import crud
+
+load_dotenv()
 
 app = FastAPI()
 
@@ -62,19 +65,24 @@ async def webhook(
 
 async def _handle_text_event(event: dict) -> None:
     """冪等チェック → Agent 処理 → Reply API。"""
+    import traceback
+
     from kotolog.line import reply as reply_mod
 
-    event_id = event.get("webhookEventId", event.get("message", {}).get("id", ""))
-    agent = _get_agent()
-    conn = agent.executor.conn
+    try:
+        event_id = event.get("webhookEventId", event.get("message", {}).get("id", ""))
+        agent = _get_agent()
+        conn = agent.executor.conn
 
-    if crud.is_processed(conn, event_id):
-        return
-    crud.mark_processed(conn, event_id)
+        if crud.is_processed(conn, event_id):
+            return
+        crud.mark_processed(conn, event_id)
 
-    text = event["message"]["text"]
-    reply_text = await asyncio.to_thread(agent.handle, text)
+        text = event["message"]["text"]
+        reply_text = await asyncio.to_thread(agent.handle, text)
 
-    reply_token = event.get("replyToken", "")
-    access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
-    await asyncio.to_thread(reply_mod.send_reply, reply_token, reply_text, access_token)
+        reply_token = event.get("replyToken", "")
+        access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+        await asyncio.to_thread(reply_mod.send_reply, reply_token, reply_text, access_token)
+    except Exception:
+        traceback.print_exc()
