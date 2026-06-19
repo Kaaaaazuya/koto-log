@@ -11,9 +11,10 @@ from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
-DEFAULT_MODEL = "ollama/qwen2.5"
+DEFAULT_MODEL = "ollama_chat/qwen2.5:7b"
 DEFAULT_DB_URL = "kotolog.db"
 DEFAULT_CHILD = "baby"
+DEFAULT_OLLAMA_BASE = "http://localhost:11434"
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,7 @@ class Config:
     api_key: str | None
     db_url: str
     default_child: str
+    ollama_base: str
 
 
 def load_config() -> Config:
@@ -33,4 +35,5 @@ def load_config() -> Config:
         api_key=api_key,
         db_url=os.getenv("KOTOLOG_DB_URL", DEFAULT_DB_URL),
         default_child=os.getenv("KOTOLOG_DEFAULT_CHILD", DEFAULT_CHILD),
+        ollama_base=os.getenv("KOTOLOG_OLLAMA_BASE", DEFAULT_OLLAMA_BASE),
     )
