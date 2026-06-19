@@ -22,6 +22,19 @@ load_dotenv()
 
 app = FastAPI()
 
+_HELP_COMMANDS = {"操作一覧", "help", "ヘルプ", "?", "？"}
+
+_HELP_TEXT = """\
+操作一覧
+
+授乳: 「母乳」「ミルク 120ml」「搾母乳 80ml」
+おむつ: 「うんち」「おしっこ」「両方」
+睡眠: 「寝た」「起きた」「寝た〜起きた 7時から8時」
+体温: 「熱 37.2」
+確認: 「今日のまとめ」「前回の授乳は？」
+修正: 「さっきのなし」「150に直して」\
+"""
+
 
 @app.get("/health")
 async def health() -> dict:
@@ -85,7 +98,10 @@ async def _handle_text_event(event: dict) -> None:
         crud.mark_processed(conn, event_id)
 
         text = event["message"]["text"]
-        reply_text = await asyncio.to_thread(agent.handle, text)
+        if text.strip() in _HELP_COMMANDS:
+            reply_text = _HELP_TEXT
+        else:
+            reply_text = await asyncio.to_thread(agent.handle, text)
 
         reply_token = event.get("replyToken", "")
         access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
