@@ -22,6 +22,12 @@ load_dotenv()
 
 app = FastAPI()
 
+
+@app.get("/health")
+async def health() -> dict:
+    return {"status": "ok"}
+
+
 # テスト時は monkeypatch でこの変数を差し替える
 _agent = None
 
