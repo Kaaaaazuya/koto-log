@@ -118,3 +118,21 @@ def delete_record(conn: sqlite3.Connection, record_id: int) -> bool:
     cur = conn.execute("DELETE FROM records WHERE id = ?", (record_id,))
     conn.commit()
     return cur.rowcount > 0
+
+
+# --- 冪等化（T2.2） ---------------------------------------------------------
+
+
+def is_processed(conn: sqlite3.Connection, event_id: str) -> bool:
+    """LINE webhook の event_id が処理済みかどうかを返す。"""
+    row = conn.execute("SELECT 1 FROM processed_events WHERE event_id = ?", (event_id,)).fetchone()
+    return row is not None
+
+
+def mark_processed(conn: sqlite3.Connection, event_id: str) -> None:
+    """event_id を処理済みとして記録する（重複は無視）。"""
+    conn.execute(
+        "INSERT OR IGNORE INTO processed_events (event_id, created_at) VALUES (?, ?)",
+        (event_id, _now()),
+    )
+    conn.commit()

@@ -16,6 +16,8 @@ def _cfg(model: str, api_key: str | None = None) -> Config:
         db_url=":memory:",
         default_child="baby",
         ollama_base="http://localhost:11434",
+        line_channel_secret=None,
+        line_channel_access_token=None,
     )
 
 

@@ -24,6 +24,8 @@ class Config:
     db_url: str
     default_child: str
     ollama_base: str
+    line_channel_secret: str | None
+    line_channel_access_token: str | None
 
 
 def load_config() -> Config:
@@ -36,4 +38,6 @@ def load_config() -> Config:
         db_url=os.getenv("KOTOLOG_DB_URL", DEFAULT_DB_URL),
         default_child=os.getenv("KOTOLOG_DEFAULT_CHILD", DEFAULT_CHILD),
         ollama_base=os.getenv("KOTOLOG_OLLAMA_BASE", DEFAULT_OLLAMA_BASE),
+        line_channel_secret=os.getenv("LINE_CHANNEL_SECRET") or None,
+        line_channel_access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN") or None,
     )

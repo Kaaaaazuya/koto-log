@@ -78,6 +78,8 @@ def cfg() -> Config:
         db_url=":memory:",
         default_child="baby",
         ollama_base=OLLAMA_BASE,
+        line_channel_secret=None,
+        line_channel_access_token=None,
     )
 
 

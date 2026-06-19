@@ -30,3 +30,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     recent_context TEXT,
     updated_at     TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS processed_events (
+    event_id   TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL
+);

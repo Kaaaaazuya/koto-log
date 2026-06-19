@@ -11,7 +11,8 @@ import sqlite3
 
 def connect(db_url: str) -> sqlite3.Connection:
     """SQLite 接続を返す。`:memory:` またはファイルパスを受け付ける。"""
-    conn = sqlite3.connect(db_url)
+    # check_same_thread=False: webhook の BackgroundTask は別スレッドで動く(P2)
+    conn = sqlite3.connect(db_url, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn

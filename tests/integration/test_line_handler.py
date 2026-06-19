@@ -1,0 +1,127 @@
+"""T2.2 + T2.3: LINE webhook の冪等化と Reply API 配線の結合テスト。
+
+実 DB（in-memory）+ FakeLLM + Reply モック で、
+「同一 event_id は1回のみ処理」「テキストで Agent → 返信」を検証する。
+"""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import hmac
+import json
+
+import pytest
+from fastapi.testclient import TestClient
+
+from kotolog.agent.loop import Agent
+from kotolog.db import crud
+from kotolog.tools.executor import ToolExecutor
+from tests.conftest import NOW, FakeLLM, make_resp
+
+CHANNEL_SECRET = "test_secret"
+ACCESS_TOKEN = "test_access_token"
+
+
+def _sign(body: bytes) -> str:
+    h = hmac.new(CHANNEL_SECRET.encode(), body, hashlib.sha256).digest()
+    return base64.b64encode(h).decode()
+
+
+def _text_event(text: str, event_id: str = "evt_001", reply_token: str = "rtok_001") -> bytes:
+    return json.dumps(
+        {
+            "destination": "Uxxx",
+            "events": [
+                {
+                    "type": "message",
+                    "webhookEventId": event_id,
+                    "replyToken": reply_token,
+                    "message": {"type": "text", "id": "msg_001", "text": text},
+                }
+            ],
+        }
+    ).encode()
+
+
+# --- T2.2: 冪等化（crud 層） -------------------------------------------------
+
+
+def test_is_processed_false_initially(conn):
+    assert crud.is_processed(conn, "evt_abc") is False
+
+
+def test_mark_processed_stores_event_id(conn):
+    crud.mark_processed(conn, "evt_abc")
+    assert crud.is_processed(conn, "evt_abc") is True
+
+
+def test_mark_processed_idempotent(conn):
+    crud.mark_processed(conn, "evt_abc")
+    crud.mark_processed(conn, "evt_abc")  # 2回目はエラーにならない
+    assert crud.is_processed(conn, "evt_abc") is True
+
+
+# --- T2.3: webhook → Agent → reply の配線 -----------------------------------
+
+
+@pytest.fixture()
+def webhook_client(monkeypatch, conn, child_id):
+    """in-memory DB + FakeLLM + Reply モックで組んだ TestClient。"""
+    import kotolog.line.reply as reply_mod
+    import kotolog.line.webhook as wh
+
+    executor = ToolExecutor(conn=conn, child_id=child_id, now=NOW)
+    llm = FakeLLM([make_resp(content="記録しました。"), make_resp(content="記録しました。")])
+    agent = Agent(client=llm, executor=executor)
+
+    sent: list[dict] = []
+
+    def mock_send_reply(reply_token: str, text: str, access_token: str) -> None:
+        sent.append({"reply_token": reply_token, "text": text})
+
+    monkeypatch.setattr(wh, "_agent", agent)
+    monkeypatch.setattr(reply_mod, "send_reply", mock_send_reply)
+    monkeypatch.setenv("LINE_CHANNEL_SECRET", CHANNEL_SECRET)
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", ACCESS_TOKEN)
+
+    return TestClient(wh.app, raise_server_exceptions=True), sent
+
+
+def test_text_event_triggers_reply(webhook_client):
+    client, sent = webhook_client
+    body = _text_event("こんにちは")
+    resp = client.post("/webhook", content=body, headers={"X-Line-Signature": _sign(body)})
+    assert resp.status_code == 200
+    assert len(sent) == 1
+    assert sent[0]["reply_token"] == "rtok_001"
+    assert "記録しました" in sent[0]["text"]
+
+
+def test_duplicate_event_is_processed_once(webhook_client):
+    client, sent = webhook_client
+    body = _text_event("こんにちは", event_id="evt_dup")
+
+    # 1回目
+    resp1 = client.post("/webhook", content=body, headers={"X-Line-Signature": _sign(body)})
+    assert resp1.status_code == 200
+
+    # 2回目（同一 event_id）
+    resp2 = client.post("/webhook", content=body, headers={"X-Line-Signature": _sign(body)})
+    assert resp2.status_code == 200
+
+    # Reply は1回だけ
+    assert len(sent) == 1
+
+
+def test_non_text_event_is_ignored(webhook_client):
+    client, sent = webhook_client
+    body = json.dumps(
+        {
+            "destination": "Uxxx",
+            "events": [{"type": "follow", "webhookEventId": "evt_follow"}],
+        }
+    ).encode()
+    resp = client.post("/webhook", content=body, headers={"X-Line-Signature": _sign(body)})
+    assert resp.status_code == 200
+    assert len(sent) == 0
