@@ -28,11 +28,22 @@ class Scenario:
 
 
 SCENARIOS = [
+    # --- 保存（T1.1） ---
     Scenario("3時にミルク120ml飲んだ", "save_record", {"type": "feeding"}),
     Scenario("9時に寝た", "save_record", {"type": "sleep"}),
     Scenario("さっきうんちした", "save_record", {"type": "diaper"}),
+    # --- 保存（T1.9: sub_type付き） ---
+    Scenario("おっぱいあげた", "save_record", {"type": "feeding"}),
+    # --- 集計（T1.1/T1.8） ---
     Scenario("今日は何回ミルク飲んだ？", "query_records", {"period": "today", "type": "feeding"}),
     Scenario("昨日の睡眠はどうだった？", "query_records", {"period": "yesterday", "type": "sleep"}),
+    # --- 日次・週次サマリ（T1.10） ---
+    Scenario("今日のまとめは？", "query_records", {"period": "today"}),
+    Scenario("今週の授乳をまとめて", "query_records", {"period": "last_7days", "type": "feeding"}),
+    # --- 前回いつ（T1.11: latest） ---
+    Scenario("前回の授乳はいつ？", "query_records", {"period": "latest", "type": "feeding"}),
+    Scenario("最後におむつ替えたのいつ？", "query_records", {"period": "latest", "type": "diaper"}),
+    # --- 修正・取消（T1.6） ---
     Scenario("さっきのなし", "update_or_delete_record", {"action": "delete"}),
     Scenario("さっきのを150に直して", "update_or_delete_record", {"action": "update"}),
 ]
