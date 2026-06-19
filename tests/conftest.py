@@ -80,6 +80,7 @@ def cfg() -> Config:
         ollama_base=OLLAMA_BASE,
         line_channel_secret=None,
         line_channel_access_token=None,
+        turso_auth_token=None,
     )
 
 

@@ -18,6 +18,7 @@ def _cfg(model: str, api_key: str | None = None) -> Config:
         ollama_base="http://localhost:11434",
         line_channel_secret=None,
         line_channel_access_token=None,
+        turso_auth_token=None,
     )
 
 

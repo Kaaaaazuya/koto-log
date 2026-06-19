@@ -26,6 +26,7 @@ class Config:
     ollama_base: str
     line_channel_secret: str | None
     line_channel_access_token: str | None
+    turso_auth_token: str | None
 
 
 def load_config() -> Config:
@@ -40,4 +41,5 @@ def load_config() -> Config:
         ollama_base=os.getenv("KOTOLOG_OLLAMA_BASE", DEFAULT_OLLAMA_BASE),
         line_channel_secret=os.getenv("LINE_CHANNEL_SECRET") or None,
         line_channel_access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN") or None,
+        turso_auth_token=os.getenv("TURSO_AUTH_TOKEN") or None,
     )

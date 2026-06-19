@@ -20,7 +20,7 @@ JST = timezone(timedelta(hours=9))
 def build_agent(config=None) -> Agent:
     """設定から DB・executor・LLM を結線した Agent を返す。"""
     config = config or load_config()
-    conn = connect(config.db_url)
+    conn = connect(config.db_url, auth_token=config.turso_auth_token)
     crud.init_db(conn)
     child_id = crud.ensure_child(conn, config.default_child)
     executor = ToolExecutor(conn=conn, child_id=child_id, now=datetime.now(JST))
