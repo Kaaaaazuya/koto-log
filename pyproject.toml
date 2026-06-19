@@ -23,3 +23,10 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--import-mode=importlib"
+markers = [
+    "unit: 純ロジックの単体テスト（DB/ネットワーク非依存）",
+    "integration: 実DB・複数コンポーネント結線の結合テスト",
+    "e2e: 入口からの一気通しテスト",
+    "live: 起動中の Ollama を要する（未起動なら自動スキップ）",
+]

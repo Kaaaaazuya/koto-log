@@ -1,24 +1,11 @@
-"""T1.3: ツール executor のテスト（直接呼び出しで DB が変わる）。"""
+"""ツール executor のテスト（結合：直接呼び出しで DB が変わる）。
 
-from datetime import datetime, timezone, timedelta
+`executor` フィクスチャは conftest が提供（基準時刻 NOW=2026-06-18 10:00 JST）。
+"""
 
 import pytest
 
 from kotolog.db import crud
-from kotolog.db.connection import connect
-from kotolog.tools.executor import ToolExecutor
-
-JST = timezone(timedelta(hours=9))
-NOW = datetime(2026, 6, 18, 10, 0, 0, tzinfo=JST)
-
-
-@pytest.fixture()
-def executor():
-    conn = connect(":memory:")
-    crud.init_db(conn)
-    child_id = crud.ensure_child(conn, "baby")
-    yield ToolExecutor(conn=conn, child_id=child_id, now=NOW)
-    conn.close()
 
 
 def test_save_record_inserts_row(executor):

@@ -1,17 +1,9 @@
-"""T1.1: DB層（接続・スキーマ・CRUD）のテスト。"""
+"""DB層（接続・スキーマ・CRUD）のテスト（結合）。
 
-import pytest
+`conn` フィクスチャ（初期化済みインメモリDB）は conftest が提供する。
+"""
 
 from kotolog.db import crud
-from kotolog.db.connection import connect
-
-
-@pytest.fixture()
-def conn():
-    c = connect(":memory:")
-    crud.init_db(c)
-    yield c
-    c.close()
 
 
 def test_init_db_creates_tables(conn):
