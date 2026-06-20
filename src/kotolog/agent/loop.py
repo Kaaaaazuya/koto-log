@@ -13,6 +13,7 @@ import json
 import re
 from dataclasses import dataclass
 
+from kotolog.agent.extractor import extract_records, format_confirmation
 from kotolog.tools.definitions import TOOLS
 from kotolog.tools.executor import ToolExecutor
 
@@ -98,6 +99,19 @@ class Agent:
 
     def handle(self, user_text: str, history: list[dict] | None = None) -> str:
         """1 ターンを処理し、ユーザーへ返す文字列を返す。"""
+        extracted = extract_records(user_text, self.client)
+        if extracted:
+            saved = []
+            for record in extracted:
+                try:
+                    result = self.executor.execute("save_record", record)
+                    if result.get("ok") and result.get("record"):
+                        saved.append(result["record"])
+                except Exception:  # noqa: BLE001
+                    pass
+            if saved:
+                return format_confirmation(saved)
+
         messages: list[dict] = [{"role": "system", "content": self.system_prompt}]
         if history:
             messages.extend(history)

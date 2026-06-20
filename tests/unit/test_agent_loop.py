@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from kotolog.agent.loop import Agent
 
@@ -51,9 +53,16 @@ class FakeLLMClient:
         self._responses = list(responses)
         self.calls: list[list[dict]] = []
 
-    def complete(self, messages, tools=None):
+    def complete(self, messages, tools=None, tool_choice=None):
         self.calls.append(messages)
         return self._responses.pop(0)
+
+
+@pytest.fixture(autouse=True)
+def no_extraction():
+    """抽出フェーズをスキップしてツール使用ループのテストに集中する。"""
+    with patch("kotolog.agent.loop.extract_records", return_value=[]):
+        yield
 
 
 class FakeExecutor:

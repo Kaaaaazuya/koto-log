@@ -17,11 +17,18 @@ class LLMClient:
         self.api_key = config.api_key
         self.ollama_base = config.ollama_base
 
-    def complete(self, messages: list[dict], tools: list[dict] | None = None):
+    def complete(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        tool_choice: dict | None = None,
+    ):
         """1 回の補完を実行する。tools を渡せば tool-use を有効化する。"""
         kwargs: dict = {"model": self.model, "messages": messages}
         if tools:
             kwargs["tools"] = tools
+        if tool_choice is not None:
+            kwargs["tool_choice"] = tool_choice
         if self._is_local():
             # ローカル(Ollama)は api_base が必要。api_key は不要。
             kwargs["api_base"] = self.ollama_base
