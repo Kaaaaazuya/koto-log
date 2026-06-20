@@ -110,6 +110,8 @@ sequenceDiagram
     R->>User: LINE Reply API
 ```
 
+> 外部サービス（LINE / Anthropic / Turso / Render / Ollama）のセットアップ手順は [docs/external-services.md](docs/external-services.md) を参照。
+
 ## プロジェクト構成
 
 ```
