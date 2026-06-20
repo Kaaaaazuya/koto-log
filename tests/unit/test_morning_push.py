@@ -5,7 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from kotolog.line.scheduler import build_morning_text
+from kotolog.line.scheduler import build_daily_summary_text, build_morning_text
 
 # ---------------------------------------------------------------------------
 # FakeLLMClient（scheduler テスト用）
@@ -128,3 +128,50 @@ def test_run_morning_push_skips_when_past_due(monkeypatch):
 
         _run_morning_push()
         mock_http.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# build_daily_summary_text
+# ---------------------------------------------------------------------------
+
+_FEEDING = {"type": "feeding", "sub_type": "ミルク", "amount": 120, "unit": "ml"}
+_DIAPER_POO = {"type": "diaper", "sub_type": "うんち", "amount": None, "unit": None}
+_DIAPER_PEE = {"type": "diaper", "sub_type": "おしっこ", "amount": None, "unit": None}
+_SLEEP = {"type": "sleep", "sub_type": None, "amount": None, "unit": None}
+_TEMP = {"type": "temp", "sub_type": None, "amount": 37.2, "unit": "℃"}
+
+
+def test_daily_summary_returns_none_when_no_records():
+    assert build_daily_summary_text("6/21", []) is None
+
+
+def test_daily_summary_includes_feeding_count_and_ml():
+    records = [_FEEDING, _FEEDING]
+    text = build_daily_summary_text("6/21", records)
+    assert "授乳: 2回" in text
+    assert "240ml" in text
+
+
+def test_daily_summary_includes_diaper_breakdown():
+    records = [_DIAPER_POO, _DIAPER_PEE, _DIAPER_PEE]
+    text = build_daily_summary_text("6/21", records)
+    assert "おむつ: 3回" in text
+    assert "うんち1回" in text
+    assert "おしっこ2回" in text
+
+
+def test_daily_summary_includes_sleep():
+    text = build_daily_summary_text("6/21", [_SLEEP])
+    assert "睡眠: 1回" in text
+
+
+def test_daily_summary_includes_max_temp():
+    text = build_daily_summary_text("6/21", [_TEMP])
+    assert "37.2" in text
+
+
+def test_daily_summary_skips_missing_types():
+    text = build_daily_summary_text("6/21", [_FEEDING])
+    assert text is not None
+    assert "睡眠" not in text
+    assert "おむつ" not in text
