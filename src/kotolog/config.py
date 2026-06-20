@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import date
 
 from dotenv import load_dotenv
 
@@ -28,6 +29,17 @@ class Config:
     line_channel_access_token: str | None
     turso_auth_token: str | None
     dashboard_token: str | None
+    due_date: date | None
+    line_user_id: str | None
+
+
+def _parse_date(s: str | None) -> date | None:
+    if not s:
+        return None
+    try:
+        return date.fromisoformat(s)
+    except ValueError:
+        return None
 
 
 def load_config() -> Config:
@@ -44,4 +56,6 @@ def load_config() -> Config:
         line_channel_access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN") or None,
         turso_auth_token=os.getenv("TURSO_AUTH_TOKEN") or None,
         dashboard_token=os.getenv("KOTOLOG_DASHBOARD_TOKEN") or None,
+        due_date=_parse_date(os.getenv("KOTOLOG_DUE_DATE")),
+        line_user_id=os.getenv("KOTOLOG_LINE_USER_ID") or None,
     )

@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import json
 import os
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
@@ -21,7 +22,19 @@ from kotolog.line.dashboard import router as dashboard_router
 
 load_dotenv()
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from kotolog.line.scheduler import start_scheduler
+
+    scheduler = start_scheduler()
+    try:
+        yield
+    finally:
+        scheduler.shutdown()
+
+
+app = FastAPI(lifespan=lifespan)
 app.include_router(dashboard_router)
 
 _HELP_COMMANDS = {"操作一覧", "help", "ヘルプ", "?", "？"}
