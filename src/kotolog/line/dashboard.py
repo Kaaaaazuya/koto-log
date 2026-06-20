@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from kotolog.db import crud
-from kotolog.types import RecordType
+from kotolog.types import DiaperSubType, RecordType
 
 router = APIRouter()
 _templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
@@ -38,43 +38,59 @@ async def dashboard(request: Request, token: str | None = None):
     conn, child_id = _get_conn_and_child()
 
     now = datetime.now(JST)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    feedings_today = crud.query_records(
-        conn,
-        child_id=child_id,
-        start=today_start.isoformat(),
-        end=now.isoformat(),
-        type=RecordType.FEEDING,
-    )
+    def _day_records(type, offset_days=None, *, day=None):
+        if day is None:
+            day = now - timedelta(days=offset_days)
+        start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+        end = day.replace(hour=23, minute=59, second=59)
+        return crud.query_records(
+            conn, child_id=child_id, start=start.isoformat(), end=end.isoformat(), type=type
+        )
 
-    daily_summaries = []
+    def _sleep_hours(records) -> float:
+        total = 0.0
+        for r in records:
+            if r["ended_at"] and r["started_at"]:
+                try:
+                    s = datetime.fromisoformat(r["started_at"])
+                    e = datetime.fromisoformat(r["ended_at"])
+                    total += (e - s).total_seconds() / 3600
+                except ValueError:
+                    pass
+        return round(total, 1)
+
+    feedings_today = _day_records(RecordType.FEEDING, day=now)
+    sleeps_today = _day_records(RecordType.SLEEP, day=now)
+    diapers_today = _day_records(RecordType.DIAPER, day=now)
+
+    feeding_summaries, sleep_summaries, diaper_summaries = [], [], []
     for i in range(6, -1, -1):
         day = now - timedelta(days=i)
-        day_start = day.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end = day.replace(hour=23, minute=59, second=59)
-        records = crud.query_records(
-            conn,
-            child_id=child_id,
-            start=day_start.isoformat(),
-            end=day_end.isoformat(),
-            type=RecordType.FEEDING,
-        )
-        total_ml = sum(r["amount"] or 0 for r in records if r["unit"] in ("ml", None))
-        daily_summaries.append(
-            {
-                "date": day.strftime("%m/%d"),
-                "count": len(records),
-                "total_ml": int(total_ml),
-            }
-        )
+        label = day.strftime("%m/%d")
+
+        f_recs = _day_records(RecordType.FEEDING, day=day)
+        total_ml = sum(r["amount"] or 0 for r in f_recs if r["unit"] in ("ml", None))
+        feeding_summaries.append({"date": label, "count": len(f_recs), "total_ml": int(total_ml)})
+
+        s_recs = _day_records(RecordType.SLEEP, day=day)
+        sleep_summaries.append({"date": label, "count": len(s_recs), "hours": _sleep_hours(s_recs)})
+
+        d_recs = _day_records(RecordType.DIAPER, day=day)
+        poo = sum(1 for r in d_recs if r["sub_type"] == DiaperSubType.POO)
+        pee = sum(1 for r in d_recs if r["sub_type"] == DiaperSubType.PEE)
+        diaper_summaries.append({"date": label, "total": len(d_recs), "poo": poo, "pee": pee})
 
     return _templates.TemplateResponse(
         request,
         "dashboard.html",
         {
             "feedings_today": [dict(r) for r in feedings_today],
-            "daily_summaries": daily_summaries,
+            "sleeps_today": [dict(r) for r in sleeps_today],
+            "diapers_today": [dict(r) for r in diapers_today],
+            "feeding_summaries": feeding_summaries,
+            "sleep_summaries": sleep_summaries,
+            "diaper_summaries": diaper_summaries,
             "now": now.strftime("%Y/%m/%d %H:%M"),
             "token": token or "",
         },

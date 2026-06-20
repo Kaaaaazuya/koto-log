@@ -11,6 +11,12 @@
   header { background: #4caf8a; color: #fff; padding: 16px 20px; }
   header h1 { font-size: 18px; font-weight: 600; }
   header p { font-size: 12px; opacity: 0.8; margin-top: 2px; }
+  .tabs { display: flex; background: #fff; border-bottom: 2px solid #eee; }
+  .tab-btn { flex: 1; padding: 12px 0; font-size: 14px; font-weight: 500; color: #999;
+             background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+  .tab-btn.active { color: #4caf8a; border-bottom-color: #4caf8a; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
   .container { max-width: 600px; margin: 0 auto; padding: 16px; }
   .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
   .card h2 { font-size: 14px; font-weight: 600; color: #666; margin-bottom: 12px; }
@@ -19,9 +25,11 @@
   td { padding: 8px; border-bottom: 1px solid #f0f0f0; }
   tr:last-child td { border-bottom: none; }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
-  .badge-breast { background: #fce4ec; color: #c2185b; }
+  .badge-breast  { background: #fce4ec; color: #c2185b; }
   .badge-formula { background: #e3f2fd; color: #1565c0; }
-  .badge-pumped { background: #f3e5f5; color: #6a1b9a; }
+  .badge-pumped  { background: #f3e5f5; color: #6a1b9a; }
+  .badge-poo     { background: #fff3e0; color: #e65100; }
+  .badge-pee     { background: #e8f5e9; color: #2e7d32; }
   .empty { color: #bbb; font-size: 14px; text-align: center; padding: 20px 0; }
   canvas { max-height: 200px; }
 </style>
@@ -31,6 +39,15 @@
   <h1>こどもログ</h1>
   <p>{{ now }} 時点</p>
 </header>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('feeding', this)">授乳</button>
+  <button class="tab-btn" onclick="switchTab('sleep', this)">睡眠</button>
+  <button class="tab-btn" onclick="switchTab('diaper', this)">おむつ</button>
+</div>
+
+<!-- ===== 授乳 ===== -->
+<div id="tab-feeding" class="tab-panel active">
 <div class="container">
 
   <div class="card">
@@ -58,10 +75,10 @@
 
   <div class="card">
     <h2>授乳サマリ（7日間）</h2>
-    <canvas id="summaryChart"></canvas>
+    <canvas id="feedingChart"></canvas>
     <table style="margin-top:12px">
       <tr><th>日付</th><th>回数</th><th>合計</th></tr>
-      {% for d in daily_summaries %}
+      {% for d in feeding_summaries %}
       <tr>
         <td>{{ d.date }}</td>
         <td>{{ d.count }}回</td>
@@ -72,26 +89,154 @@
   </div>
 
 </div>
+</div>
+
+<!-- ===== 睡眠 ===== -->
+<div id="tab-sleep" class="tab-panel">
+<div class="container">
+
+  <div class="card">
+    <h2>今日の睡眠</h2>
+    {% if sleeps_today %}
+    <table>
+      <tr><th>開始</th><th>終了</th><th>時間</th></tr>
+      {% for r in sleeps_today %}
+      <tr>
+        <td>{{ r.started_at[11:16] }}</td>
+        <td>{% if r.ended_at %}{{ r.ended_at[11:16] }}{% else %}—{% endif %}</td>
+        <td>
+          {% if r.ended_at %}
+            {{ ((r.ended_at[11:13]|int * 60 + r.ended_at[14:16]|int) - (r.started_at[11:13]|int * 60 + r.started_at[14:16]|int)) // 60 }}h
+            {{ ((r.ended_at[11:13]|int * 60 + r.ended_at[14:16]|int) - (r.started_at[11:13]|int * 60 + r.started_at[14:16]|int)) % 60 }}m
+          {% else %}睡眠中{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p class="empty">今日の記録はまだありません</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>睡眠サマリ（7日間）</h2>
+    <canvas id="sleepChart"></canvas>
+    <table style="margin-top:12px">
+      <tr><th>日付</th><th>回数</th><th>合計時間</th></tr>
+      {% for d in sleep_summaries %}
+      <tr>
+        <td>{{ d.date }}</td>
+        <td>{{ d.count }}回</td>
+        <td>{% if d.hours %}{{ d.hours }}h{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+</div>
+</div>
+
+<!-- ===== おむつ ===== -->
+<div id="tab-diaper" class="tab-panel">
+<div class="container">
+
+  <div class="card">
+    <h2>今日のおむつ</h2>
+    {% if diapers_today %}
+    <table>
+      <tr><th>時刻</th><th>種別</th></tr>
+      {% for r in diapers_today %}
+      <tr>
+        <td>{{ r.started_at[11:16] }}</td>
+        <td>
+          {% if r.sub_type == "うんち" %}<span class="badge badge-poo">うんち</span>
+          {% elif r.sub_type == "おしっこ" %}<span class="badge badge-pee">おしっこ</span>
+          {% else %}<span class="badge">{{ r.sub_type or "おむつ" }}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p class="empty">今日の記録はまだありません</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>おむつ推移（7日間）</h2>
+    <canvas id="diaperChart"></canvas>
+    <table style="margin-top:12px">
+      <tr><th>日付</th><th>合計</th><th>うんち</th><th>おしっこ</th></tr>
+      {% for d in diaper_summaries %}
+      <tr>
+        <td>{{ d.date }}</td>
+        <td>{{ d.total }}回</td>
+        <td>{{ d.poo }}</td>
+        <td>{{ d.pee }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+</div>
+</div>
+
 <script>
-const labels = {{ daily_summaries | map(attribute='date') | list | tojson }};
-const counts = {{ daily_summaries | map(attribute='count') | list | tojson }};
-const totals = {{ daily_summaries | map(attribute='total_ml') | list | tojson }};
-new Chart(document.getElementById('summaryChart'), {
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+const labels = {{ feeding_summaries | map(attribute='date') | list | tojson }};
+
+new Chart(document.getElementById('feedingChart'), {
   type: 'bar',
   data: {
     labels,
     datasets: [
-      { label: '回数', data: counts, backgroundColor: '#4caf8a99', yAxisID: 'y' },
-      { label: '合計ml', data: totals, backgroundColor: '#1565c033', yAxisID: 'y2' },
+      { label: '回数', data: {{ feeding_summaries | map(attribute='count') | list | tojson }}, backgroundColor: '#4caf8a99', yAxisID: 'y' },
+      { label: '合計ml', data: {{ feeding_summaries | map(attribute='total_ml') | list | tojson }}, backgroundColor: '#1565c033', yAxisID: 'y2' },
     ]
   },
   options: {
     responsive: true,
     plugins: { legend: { labels: { font: { size: 11 } } } },
     scales: {
-      y: { position: 'left', title: { display: true, text: '回数', font: { size: 10 } }, ticks: { font: { size: 10 } } },
-      y2: { position: 'right', title: { display: true, text: 'ml', font: { size: 10 } }, ticks: { font: { size: 10 } }, grid: { drawOnChartArea: false } },
+      y:  { position: 'left',  title: { display: true, text: '回数', font: { size: 10 } }, ticks: { font: { size: 10 } } },
+      y2: { position: 'right', title: { display: true, text: 'ml',   font: { size: 10 } }, ticks: { font: { size: 10 } }, grid: { drawOnChartArea: false } },
     }
+  }
+});
+
+new Chart(document.getElementById('sleepChart'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [
+      { label: '睡眠時間(h)', data: {{ sleep_summaries | map(attribute='hours') | list | tojson }}, backgroundColor: '#7986cb99' },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { labels: { font: { size: 11 } } } },
+    scales: { y: { title: { display: true, text: '時間', font: { size: 10 } }, ticks: { font: { size: 10 } } } }
+  }
+});
+
+new Chart(document.getElementById('diaperChart'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [
+      { label: 'うんち', data: {{ diaper_summaries | map(attribute='poo') | list | tojson }}, backgroundColor: '#ff8f0099', stack: 's' },
+      { label: 'おしっこ', data: {{ diaper_summaries | map(attribute='pee') | list | tojson }}, backgroundColor: '#66bb6a99', stack: 's' },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { labels: { font: { size: 11 } } } },
+    scales: { x: { stacked: true }, y: { stacked: true, ticks: { font: { size: 10 }, stepSize: 1 } } }
   }
 });
 </script>

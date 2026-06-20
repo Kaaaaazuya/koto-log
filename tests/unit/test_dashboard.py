@@ -22,6 +22,32 @@ _FAKE_FEEDING = {
     "created_at": "2024-01-01T14:01:00+09:00",
     "updated_at": "2024-01-01T14:01:00+09:00",
 }
+_FAKE_SLEEP = {
+    "id": 2,
+    "child_id": 1,
+    "type": "sleep",
+    "sub_type": None,
+    "amount": None,
+    "unit": None,
+    "started_at": "2024-01-01T21:00:00+09:00",
+    "ended_at": "2024-01-01T23:00:00+09:00",
+    "note": None,
+    "created_at": "2024-01-01T21:01:00+09:00",
+    "updated_at": "2024-01-01T21:01:00+09:00",
+}
+_FAKE_DIAPER = {
+    "id": 3,
+    "child_id": 1,
+    "type": "diaper",
+    "sub_type": "うんち",
+    "amount": None,
+    "unit": None,
+    "started_at": "2024-01-01T10:00:00+09:00",
+    "ended_at": None,
+    "note": None,
+    "created_at": "2024-01-01T10:01:00+09:00",
+    "updated_at": "2024-01-01T10:01:00+09:00",
+}
 
 
 @pytest.fixture()
@@ -66,6 +92,20 @@ def test_dashboard_renders_empty_state(client):
         resp = client.get(f"/dashboard?token={TOKEN}")
     assert resp.status_code == 200
     assert "今日の記録はまだありません" in resp.text
+
+
+def test_dashboard_renders_sleep_tab(client):
+    with patch("kotolog.db.crud.query_records", return_value=[_FAKE_SLEEP]):
+        resp = client.get(f"/dashboard?token={TOKEN}")
+    assert resp.status_code == 200
+    assert "睡眠" in resp.text
+
+
+def test_dashboard_renders_diaper_tab(client):
+    with patch("kotolog.db.crud.query_records", return_value=[_FAKE_DIAPER]):
+        resp = client.get(f"/dashboard?token={TOKEN}")
+    assert resp.status_code == 200
+    assert "おむつ" in resp.text
 
 
 def test_no_token_env_allows_access(monkeypatch):
