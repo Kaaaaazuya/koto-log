@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 
 from kotolog.db import crud
+from kotolog.line.admin import router as admin_router
 from kotolog.line.dashboard import router as dashboard_router
 
 load_dotenv()
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(dashboard_router)
+app.include_router(admin_router)
 
 _HELP_COMMANDS = {"操作一覧", "help", "ヘルプ", "?", "？"}
 
@@ -111,6 +113,10 @@ async def _handle_text_event(event: dict) -> None:
         if crud.is_processed(conn, event_id):
             return
         crud.mark_processed(conn, event_id)
+
+        user_id = event.get("source", {}).get("userId", "")
+        if user_id:
+            crud.set_setting(conn, "line_user_id", user_id)
 
         text = event["message"]["text"]
         if text.strip() in _HELP_COMMANDS:

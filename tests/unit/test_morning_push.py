@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -80,11 +79,10 @@ def test_send_push_posts_correct_payload():
 # ---------------------------------------------------------------------------
 
 
-def test_run_morning_push_skips_when_no_due_date(monkeypatch):
-    """due_date が未設定の場合は push しない。"""
+def _base_cfg():
     from kotolog.config import Config
 
-    cfg = Config(
+    return Config(
         model="m",
         api_key=None,
         db_url=":memory:",
@@ -94,39 +92,39 @@ def test_run_morning_push_skips_when_no_due_date(monkeypatch):
         line_channel_access_token="tok",
         turso_auth_token=None,
         dashboard_token=None,
-        due_date=None,
-        line_user_id="U123",
     )
-    monkeypatch.setattr("kotolog.line.scheduler.load_config", lambda: cfg)
 
-    with patch("kotolog.line.push.httpx.Client") as mock_client_cls:
+
+def test_run_morning_push_skips_when_no_due_date(monkeypatch):
+    """due_date が DB に未設定の場合は push しない。"""
+    monkeypatch.setattr("kotolog.line.scheduler.load_config", _base_cfg)
+
+    with (
+        patch("kotolog.line.scheduler.connect") as mock_connect,
+        patch("kotolog.line.scheduler.crud.get_setting", return_value=None),
+        patch("kotolog.line.push.httpx.Client") as mock_http,
+    ):
+        mock_connect.return_value = MagicMock()
         from kotolog.line.scheduler import _run_morning_push
 
         _run_morning_push()
-        mock_client_cls.assert_not_called()
+        mock_http.assert_not_called()
 
 
 def test_run_morning_push_skips_when_past_due(monkeypatch):
     """予定日を過ぎた場合は push しない。"""
-    from kotolog.config import Config
+    monkeypatch.setattr("kotolog.line.scheduler.load_config", _base_cfg)
 
-    cfg = Config(
-        model="m",
-        api_key=None,
-        db_url=":memory:",
-        default_child="baby",
-        ollama_base="http://localhost:11434",
-        line_channel_secret=None,
-        line_channel_access_token="tok",
-        turso_auth_token=None,
-        dashboard_token=None,
-        due_date=date(2020, 1, 1),
-        line_user_id="U123",
-    )
-    monkeypatch.setattr("kotolog.line.scheduler.load_config", lambda: cfg)
+    def _get_setting(_conn, key):
+        return "2020-01-01" if key == "due_date" else "U123"
 
-    with patch("kotolog.line.push.httpx.Client") as mock_client_cls:
+    with (
+        patch("kotolog.line.scheduler.connect") as mock_connect,
+        patch("kotolog.line.scheduler.crud.get_setting", side_effect=_get_setting),
+        patch("kotolog.line.push.httpx.Client") as mock_http,
+    ):
+        mock_connect.return_value = MagicMock()
         from kotolog.line.scheduler import _run_morning_push
 
         _run_morning_push()
-        mock_client_cls.assert_not_called()
+        mock_http.assert_not_called()

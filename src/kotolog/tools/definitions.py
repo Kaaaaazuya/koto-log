@@ -13,6 +13,8 @@ RECORD_TYPES = [t.value for t in RecordType]
 # latest は「前回の◯◯はいつ？」用：直近1件＋経過時間を返す
 PERIODS = ["today", "yesterday", "last_24h", "last_7days", "latest"]
 
+CONFIG_KEYS = ["due_date"]
+
 TOOLS = [
     {
         "type": "function",
@@ -98,6 +100,28 @@ TOOLS = [
                     },
                 },
                 "required": ["target", "action"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_config",
+            "description": "出産予定日などのアプリ設定を保存する。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "key": {
+                        "type": "string",
+                        "enum": CONFIG_KEYS,
+                        "description": "設定キー。",
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "due_date は YYYY-MM-DD 形式（例: 2026-09-15）。",
+                    },
+                },
+                "required": ["key", "value"],
             },
         },
     },

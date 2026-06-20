@@ -8,7 +8,7 @@ LLM が選んだ tool 名と引数を受け取り、対応する DB 操作を実
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from kotolog.db import crud
 from kotolog.utils.subtype import normalize_sub_type
@@ -56,6 +56,8 @@ class ToolExecutor:
             return self._query_records(args)
         if name == "update_or_delete_record":
             return self._update_or_delete(args)
+        if name == "set_config":
+            return self._set_config(args)
         raise ValueError(f"unknown tool: {name}")
 
     # --- save ---------------------------------------------------------------
@@ -148,6 +150,17 @@ class ToolExecutor:
             "action": "update",
             "record": _record_to_dict(crud.get_record(self.conn, rid)),
         }
+
+    # --- config -------------------------------------------------------------
+    def _set_config(self, args: dict) -> dict:
+        key, value = args["key"], args["value"]
+        if key == "due_date":
+            try:
+                date.fromisoformat(value)
+            except ValueError:
+                return {"ok": False, "reason": f"日付の形式が正しくない: {value}。YYYY-MM-DD で指定して"}
+        crud.set_setting(self.conn, key, value)
+        return {"ok": True, "key": key, "value": value}
 
     # --- helpers ------------------------------------------------------------
     def _resolve_period(self, period: str) -> tuple[str, str]:

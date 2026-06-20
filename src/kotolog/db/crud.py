@@ -120,6 +120,22 @@ def delete_record(conn: sqlite3.Connection, record_id: int) -> bool:
     return cur.rowcount > 0
 
 
+# --- 設定（key-value） -------------------------------------------------------
+
+
+def get_setting(conn: sqlite3.Connection, key: str) -> str | None:
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        (key, value),
+    )
+    conn.commit()
+
+
 # --- 冪等化（T2.2） ---------------------------------------------------------
 
 

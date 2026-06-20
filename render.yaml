@@ -24,8 +24,3 @@ services:
         value: baby
       - key: KOTOLOG_DASHBOARD_TOKEN
         sync: false
-      # プロアクティブ Push 通知
-      - key: KOTOLOG_DUE_DATE
-        sync: false
-      - key: KOTOLOG_LINE_USER_ID
-        sync: false

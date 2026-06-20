@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>koto-log 管理</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333; padding: 24px; }
+    h1 { font-size: 1.4rem; margin-bottom: 24px; color: #555; }
+    h2 { font-size: 1rem; margin-bottom: 12px; color: #666; }
+    .card { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    label { display: block; font-size: .85rem; color: #888; margin-bottom: 4px; }
+    input[type="date"], input[type="text"] {
+      width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px;
+      font-size: 1rem; margin-bottom: 12px;
+    }
+    .btn { display: inline-block; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: .95rem; }
+    .btn-primary { background: #06c755; color: #fff; }
+    .btn-secondary { background: #eee; color: #555; }
+    .btn:hover { opacity: .85; }
+    .notice { padding: 10px 14px; border-radius: 6px; font-size: .9rem; margin-bottom: 16px; }
+    .notice-ok { background: #e6f4ea; color: #2d7a3a; }
+    .hint { font-size: .8rem; color: #aaa; margin-top: -8px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <h1>koto-log 管理</h1>
+
+  {% if saved %}
+  <div class="notice notice-ok">設定を保存しました。</div>
+  {% endif %}
+  {% if sent %}
+  <div class="notice notice-ok">テスト送信しました。</div>
+  {% endif %}
+
+  <div class="card">
+    <h2>設定</h2>
+    <form method="POST" action="/admin?token={{ token }}">
+      <label>出産予定日</label>
+      <input type="date" name="due_date" value="{{ due_date }}">
+
+      <label>LINE ユーザーID</label>
+      <input type="text" name="line_user_id" value="{{ line_user_id }}" placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+      <p class="hint">LINE に話しかけると自動で保存されます。</p>
+
+      <button type="submit" class="btn btn-primary">保存</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>テスト送信</h2>
+    <p style="font-size:.85rem;color:#888;margin-bottom:12px;">
+      今すぐ朝のカウントダウンメッセージを送信します。予定日と LINE ユーザーID が設定済みの場合のみ送信されます。
+    </p>
+    <form method="POST" action="/admin/test-push?token={{ token }}">
+      <button type="submit" class="btn btn-secondary">今すぐ送信</button>
+    </form>
+  </div>
+</body>
+</html>

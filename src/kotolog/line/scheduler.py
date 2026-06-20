@@ -13,6 +13,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from kotolog.config import load_config
+from kotolog.db import crud
+from kotolog.db.connection import connect
 
 JST = timezone(timedelta(hours=9))
 
@@ -42,17 +44,28 @@ def _run_morning_push() -> None:
     from kotolog.llm.client import LLMClient
 
     cfg = load_config()
-    if not cfg.due_date or not cfg.line_user_id or not cfg.line_channel_access_token:
+    if not cfg.line_channel_access_token:
         return
 
-    today = date.today()
-    remaining = (cfg.due_date - today).days
+    conn = connect(cfg.db_url, cfg.turso_auth_token)
+    due_date_str = crud.get_setting(conn, "due_date")
+    line_user_id = crud.get_setting(conn, "line_user_id")
+
+    if not due_date_str or not line_user_id:
+        return
+
+    try:
+        due_date = date.fromisoformat(due_date_str)
+    except ValueError:
+        return
+
+    remaining = (due_date - date.today()).days
     if remaining < 0:
         return
 
     llm = LLMClient(cfg)
     text = build_morning_text(remaining, llm)
-    send_push(cfg.line_user_id, text, cfg.line_channel_access_token)
+    send_push(line_user_id, text, cfg.line_channel_access_token)
 
 
 async def _morning_job() -> None:
