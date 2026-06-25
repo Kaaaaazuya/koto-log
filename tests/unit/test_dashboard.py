@@ -108,6 +108,23 @@ def test_dashboard_renders_diaper_tab(client):
     assert "おむつ" in resp.text
 
 
+def test_dashboard_renders_timeline(client):
+    """今日タブにタイムライン（今日のながれ）が表示される。"""
+    with patch("kotolog.db.crud.query_records", return_value=[_FAKE_FEEDING]):
+        resp = client.get(f"/dashboard?token={TOKEN}")
+    assert resp.status_code == 200
+    assert "今日のながれ" in resp.text
+    assert "🍼" in resp.text
+
+
+def test_dashboard_sleep_summary_str(client):
+    """睡眠合計時間がサマリーカードに表示される。"""
+    with patch("kotolog.db.crud.query_records", return_value=[_FAKE_SLEEP]):
+        resp = client.get(f"/dashboard?token={TOKEN}")
+    assert resp.status_code == 200
+    assert "2h" in resp.text
+
+
 def test_no_token_env_allows_access(monkeypatch):
     """KOTOLOG_DASHBOARD_TOKEN 未設定時はトークンなしでアクセス可。"""
     monkeypatch.setenv("LINE_CHANNEL_SECRET", "secret")

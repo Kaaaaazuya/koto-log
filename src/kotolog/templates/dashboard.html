@@ -4,34 +4,84 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>こどもログ</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <style>
+  :root {
+    --feeding-bg: #FFE7D6;
+    --feeding-accent: #C07248;
+    --sleep-bg: #E7E3F7;
+    --sleep-accent: #7A68C0;
+    --diaper-bg: #D5EFE0;
+    --diaper-accent: #4FA97E;
+    --temp-bg: #FCEBC4;
+    --temp-accent: #B58D2A;
+    --text-primary: #574E45;
+    --text-secondary: #8C8178;
+    --text-muted: #A89E94;
+    --border-color: #EFE5DA;
+    --page-bg: #FFF8F2;
+    --card-bg: #fff;
+    --header-bg: #574E45;
+    --tab-active: #574E45;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333; }
-  header { background: #4caf8a; color: #fff; padding: 16px 20px; }
-  header h1 { font-size: 18px; font-weight: 600; }
-  header p { font-size: 12px; opacity: 0.8; margin-top: 2px; }
-  .tabs { display: flex; background: #fff; border-bottom: 2px solid #eee; }
-  .tab-btn { flex: 1; padding: 12px 0; font-size: 14px; font-weight: 500; color: #999;
-             background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-  .tab-btn.active { color: #4caf8a; border-bottom-color: #4caf8a; }
+  body { font-family: 'Zen Maru Gothic', -apple-system, sans-serif; background: var(--page-bg); color: var(--text-primary); }
+  header { background: var(--header-bg); color: #fff; padding: 16px 20px; }
+  header h1 { font-size: 18px; font-weight: 700; }
+  header p { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+  .tabs { display: flex; background: #fff; border-bottom: 2px solid var(--border-color); }
+  .tab-btn { flex: 1; padding: 12px 0; font-size: 14px; font-weight: 500; color: var(--text-muted);
+             background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent;
+             margin-bottom: -2px; font-family: inherit; }
+  .tab-btn.active { color: var(--tab-active); border-bottom-color: var(--tab-active); font-weight: 700; }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
   .container { max-width: 600px; margin: 0 auto; padding: 16px; }
-  .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-  .card h2 { font-size: 14px; font-weight: 600; color: #666; margin-bottom: 12px; }
+  .card { background: var(--card-bg); border-radius: 16px; padding: 16px; margin-bottom: 16px;
+          box-shadow: 0 4px 16px rgba(120,100,80,.07); }
+  .card h2 { font-size: 14px; font-weight: 700; color: var(--text-secondary); margin-bottom: 12px; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th { text-align: left; padding: 6px 8px; color: #999; font-weight: 500; border-bottom: 1px solid #eee; }
-  td { padding: 8px; border-bottom: 1px solid #f0f0f0; }
+  th { text-align: left; padding: 6px 8px; color: var(--text-muted); font-weight: 500;
+       border-bottom: 1px solid var(--border-color); }
+  td { padding: 8px; border-bottom: 1px solid var(--border-color); color: var(--text-primary); }
   tr:last-child td { border-bottom: none; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
-  .badge-breast  { background: #fce4ec; color: #c2185b; }
-  .badge-formula { background: #e3f2fd; color: #1565c0; }
-  .badge-pumped  { background: #f3e5f5; color: #6a1b9a; }
-  .badge-poo     { background: #fff3e0; color: #e65100; }
-  .badge-pee     { background: #e8f5e9; color: #2e7d32; }
-  .empty { color: #bbb; font-size: 14px; text-align: center; padding: 20px 0; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 500; }
+  .badge-breast, .badge-formula, .badge-pumped { background: var(--feeding-bg); color: var(--feeding-accent); }
+  .badge-poo { background: var(--diaper-bg); color: var(--diaper-accent); }
+  .badge-pee { background: #D8F0E8; color: #3A9A6E; }
+  .empty { color: var(--text-muted); font-size: 14px; text-align: center; padding: 20px 0; }
   canvas { max-height: 200px; }
+
+  /* Summary cards */
+  .summary-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+  .summary-card { border-radius: 16px; padding: 14px 10px; text-align: center; }
+  .summary-card.type-feeding { background: var(--feeding-bg); }
+  .summary-card.type-sleep   { background: var(--sleep-bg); }
+  .summary-card.type-diaper  { background: var(--diaper-bg); }
+  .s-icon  { font-size: 22px; margin-bottom: 4px; }
+  .s-value { font-size: 24px; font-weight: 700; color: var(--text-primary); line-height: 1.1; }
+  .s-unit  { font-size: 13px; color: var(--text-secondary); }
+  .s-label { font-size: 11px; font-weight: 700; margin-top: 4px; }
+  .summary-card.type-feeding .s-label { color: var(--feeding-accent); }
+  .summary-card.type-sleep   .s-label { color: var(--sleep-accent); }
+  .summary-card.type-diaper  .s-label { color: var(--diaper-accent); }
+
+  /* Timeline */
+  .timeline { position: relative; }
+  .timeline::before { content: ''; position: absolute; left: 17px; top: 20px; bottom: 20px;
+                       width: 2px; background: var(--border-color); }
+  .tl-item { display: flex; align-items: center; gap: 12px; padding: 7px 0; }
+  .tl-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center;
+             justify-content: center; font-size: 17px; flex-shrink: 0; position: relative; z-index: 1;
+             box-shadow: 0 0 0 3px var(--page-bg); }
+  .tl-icon.type-feeding { background: var(--feeding-bg); }
+  .tl-icon.type-sleep   { background: var(--sleep-bg); }
+  .tl-icon.type-diaper  { background: var(--diaper-bg); }
+  .tl-icon.type-temp    { background: var(--temp-bg); }
+  .tl-body { flex: 1; min-width: 0; }
+  .tl-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .tl-time { font-size: 13px; font-weight: 600; color: var(--text-muted); flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -41,13 +91,58 @@
 </header>
 
 <div class="tabs">
-  <button class="tab-btn active" onclick="switchTab('feeding', this)">授乳</button>
+  <button class="tab-btn active" onclick="switchTab('today', this)">今日</button>
+  <button class="tab-btn" onclick="switchTab('feeding', this)">授乳</button>
   <button class="tab-btn" onclick="switchTab('sleep', this)">睡眠</button>
   <button class="tab-btn" onclick="switchTab('diaper', this)">おむつ</button>
 </div>
 
+<!-- ===== 今日 ===== -->
+<div id="tab-today" class="tab-panel active">
+<div class="container">
+
+  <div class="summary-row">
+    <div class="summary-card type-feeding">
+      <div class="s-icon">🍼</div>
+      <div class="s-value">{{ feedings_today|length }}<span class="s-unit">回</span></div>
+      <div class="s-label">授乳</div>
+    </div>
+    <div class="summary-card type-sleep">
+      <div class="s-icon">🌙</div>
+      <div class="s-value">{{ sleep_today_str }}</div>
+      <div class="s-label">睡眠</div>
+    </div>
+    <div class="summary-card type-diaper">
+      <div class="s-icon">💧</div>
+      <div class="s-value">{{ diapers_today|length }}<span class="s-unit">回</span></div>
+      <div class="s-label">おむつ</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>今日のながれ</h2>
+    {% if timeline_today %}
+    <div class="timeline">
+      {% for r in timeline_today %}
+      <div class="tl-item">
+        <div class="tl-icon type-{{ r.type }}">{{ r.icon }}</div>
+        <div class="tl-body">
+          <div class="tl-name">{{ r.type_label }}{% if r.detail %} · {{ r.detail }}{% endif %}</div>
+        </div>
+        <div class="tl-time">{{ r.started_at[11:16] if r.started_at else '' }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty">今日の記録はまだありません</p>
+    {% endif %}
+  </div>
+
+</div>
+</div>
+
 <!-- ===== 授乳 ===== -->
-<div id="tab-feeding" class="tab-panel active">
+<div id="tab-feeding" class="tab-panel">
 <div class="container">
 
   <div class="card">
@@ -195,8 +290,8 @@ new Chart(document.getElementById('feedingChart'), {
   data: {
     labels,
     datasets: [
-      { label: '回数', data: {{ feeding_summaries | map(attribute='count') | list | tojson }}, backgroundColor: '#4caf8a99', yAxisID: 'y' },
-      { label: '合計ml', data: {{ feeding_summaries | map(attribute='total_ml') | list | tojson }}, backgroundColor: '#1565c033', yAxisID: 'y2' },
+      { label: '回数', data: {{ feeding_summaries | map(attribute='count') | list | tojson }}, backgroundColor: '#F2A07B99', yAxisID: 'y' },
+      { label: '合計ml', data: {{ feeding_summaries | map(attribute='total_ml') | list | tojson }}, backgroundColor: '#E7E3F799', yAxisID: 'y2' },
     ]
   },
   options: {
@@ -214,7 +309,7 @@ new Chart(document.getElementById('sleepChart'), {
   data: {
     labels,
     datasets: [
-      { label: '睡眠時間(h)', data: {{ sleep_summaries | map(attribute='hours') | list | tojson }}, backgroundColor: '#7986cb99' },
+      { label: '睡眠時間(h)', data: {{ sleep_summaries | map(attribute='hours') | list | tojson }}, backgroundColor: '#9A8FC099' },
     ]
   },
   options: {
@@ -229,8 +324,8 @@ new Chart(document.getElementById('diaperChart'), {
   data: {
     labels,
     datasets: [
-      { label: 'うんち', data: {{ diaper_summaries | map(attribute='poo') | list | tojson }}, backgroundColor: '#ff8f0099', stack: 's' },
-      { label: 'おしっこ', data: {{ diaper_summaries | map(attribute='pee') | list | tojson }}, backgroundColor: '#66bb6a99', stack: 's' },
+      { label: 'うんち', data: {{ diaper_summaries | map(attribute='poo') | list | tojson }}, backgroundColor: '#F2A07B99', stack: 's' },
+      { label: 'おしっこ', data: {{ diaper_summaries | map(attribute='pee') | list | tojson }}, backgroundColor: '#4FA97E99', stack: 's' },
     ]
   },
   options: {

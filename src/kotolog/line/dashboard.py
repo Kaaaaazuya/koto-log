@@ -18,6 +18,47 @@ _templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templ
 
 JST = timezone(timedelta(hours=9))
 
+_ICONS: dict[str, str] = {
+    "feeding": "🍼",
+    "sleep": "🌙",
+    "diaper": "💧",
+    "temp": "🌡️",
+}
+_TYPE_LABELS: dict[str, str] = {
+    "feeding": "授乳",
+    "sleep": "睡眠",
+    "diaper": "おむつ",
+    "temp": "体温",
+}
+
+
+def _timeline_label(r: dict) -> str:
+    t = r.get("type", "")
+    sub = r.get("sub_type") or ""
+    amount = r.get("amount")
+    unit = r.get("unit") or "ml"
+    if t == "feeding":
+        parts = [sub] if sub else []
+        if amount:
+            parts.append(f"{int(amount)}{unit}")
+        return " · ".join(parts) or "授乳"
+    if t == "sleep":
+        if r.get("ended_at"):
+            try:
+                s = datetime.fromisoformat(r["started_at"])
+                e = datetime.fromisoformat(r["ended_at"])
+                mins = int((e - s).total_seconds() / 60)
+                h, m = divmod(mins, 60)
+                return f"{h}h{m:02d}m" if m else f"{h}h"
+            except Exception:
+                pass
+        return "睡眠中"
+    if t == "diaper":
+        return sub or "おむつ"
+    if t == "temp":
+        return f"{amount}℃" if amount else "体温"
+    return t
+
 
 def _check_token(token: str | None) -> None:
     expected = os.environ.get("KOTOLOG_DASHBOARD_TOKEN", "")
@@ -64,6 +105,20 @@ async def dashboard(request: Request, token: str | None = None):
     sleeps_today = _day_records(RecordType.SLEEP, day=now)
     diapers_today = _day_records(RecordType.DIAPER, day=now)
 
+    # 今日のタイムライン（全カテゴリを時系列降順に並べる）
+    _all_today = [dict(r) for r in feedings_today + sleeps_today + diapers_today]
+    for _r in _all_today:
+        _r["icon"] = _ICONS.get(_r["type"], "📝")
+        _r["type_label"] = _TYPE_LABELS.get(_r["type"], _r["type"])
+        _r["detail"] = _timeline_label(_r)
+    timeline_today = sorted(_all_today, key=lambda r: r.get("started_at", ""), reverse=True)
+
+    # 今日の睡眠合計（サマリーカード表示用）
+    sleep_hours_today = _sleep_hours(sleeps_today)
+    _sh = int(sleep_hours_today)
+    _sm = int(round((sleep_hours_today - _sh) * 60))
+    sleep_today_str = f"{_sh}h{_sm:02d}m" if sleep_hours_today > 0 else "—"
+
     feeding_summaries, sleep_summaries, diaper_summaries = [], [], []
     for i in range(6, -1, -1):
         day = now - timedelta(days=i)
@@ -88,6 +143,8 @@ async def dashboard(request: Request, token: str | None = None):
             "feedings_today": [dict(r) for r in feedings_today],
             "sleeps_today": [dict(r) for r in sleeps_today],
             "diapers_today": [dict(r) for r in diapers_today],
+            "timeline_today": timeline_today,
+            "sleep_today_str": sleep_today_str,
             "feeding_summaries": feeding_summaries,
             "sleep_summaries": sleep_summaries,
             "diaper_summaries": diaper_summaries,

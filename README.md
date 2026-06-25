@@ -18,7 +18,7 @@
 - 「今日のまとめ」「前回の授乳はいつ？」などの振り返りクエリ
 - 直近記録の修正・取り消し（例: 「150に直して」「さっきのなし」）
 - 「操作一覧」「help」「？」で使い方を即返答（LLM バイパス）
-- ダッシュボード（`/dashboard`）で授乳・睡眠・おむつを3タブで確認、7日間サマリーグラフ付き
+- ダッシュボード（`/dashboard`）で今日のサマリーカード（授乳回数・睡眠時間・おむつ回数）と時系列タイムラインを表示。授乳・睡眠・おむつの7日間サマリーグラフ付き
 - 管理画面（`/admin`）でブラウザから出産予定日・LINE ユーザー ID を設定
 - **毎朝7時**に出産カウントダウン + LLM 一言を LINE Push（P5）
 - **毎晩21時**に当日の育児サマリーを LINE Push（記録なしはスキップ）（P5）
@@ -57,7 +57,7 @@ graph TD
     subgraph Render["Render (Docker)"]
         subgraph FastAPI
             WH["webhook.py\n署名検証・冪等化\nショートカット"]
-            DASH["dashboard.py\nJinja2 + Chart.js\n3タブ（授乳/睡眠/おむつ）"]
+            DASH["dashboard.py\nJinja2 + Chart.js\n今日タブ + 7日間サマリー"]
             ADM["admin.py\n/admin 設定画面"]
         end
         subgraph Agent["Agent Layer"]
