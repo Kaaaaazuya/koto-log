@@ -74,8 +74,9 @@ def _get_conn_and_child():
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request, token: str | None = None):
+async def dashboard(request: Request, token: str | None = None, days: int = 7):
     _check_token(token)
+    days = max(1, min(days, 90))
     conn, child_id = _get_conn_and_child()
 
     now = datetime.now(JST)
@@ -120,7 +121,7 @@ async def dashboard(request: Request, token: str | None = None):
     sleep_today_str = f"{_sh}h{_sm:02d}m" if sleep_hours_today > 0 else "—"
 
     feeding_summaries, sleep_summaries, diaper_summaries = [], [], []
-    for i in range(6, -1, -1):
+    for i in range(days - 1, -1, -1):
         day = now - timedelta(days=i)
         label = day.strftime("%m/%d")
 
@@ -148,6 +149,7 @@ async def dashboard(request: Request, token: str | None = None):
             "feeding_summaries": feeding_summaries,
             "sleep_summaries": sleep_summaries,
             "diaper_summaries": diaper_summaries,
+            "days": days,
             "now": now.strftime("%Y/%m/%d %H:%M"),
             "token": token or "",
         },

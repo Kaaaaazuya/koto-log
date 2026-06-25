@@ -82,6 +82,15 @@
   .tl-body { flex: 1; min-width: 0; }
   .tl-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
   .tl-time { font-size: 13px; font-weight: 600; color: var(--text-muted); flex-shrink: 0; }
+
+  /* Period selector */
+  .period-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px;
+                background: #fff; border-bottom: 1px solid var(--border-color); }
+  .period-label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+  .period-btn { padding: 5px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+                border: 1.5px solid var(--border-color); color: var(--text-secondary);
+                background: transparent; cursor: pointer; font-family: inherit; }
+  .period-btn.active { background: var(--header-bg); color: #fff; border-color: var(--header-bg); }
 </style>
 </head>
 <body>
@@ -91,10 +100,17 @@
 </header>
 
 <div class="tabs">
-  <button class="tab-btn active" onclick="switchTab('today', this)">今日</button>
-  <button class="tab-btn" onclick="switchTab('feeding', this)">授乳</button>
-  <button class="tab-btn" onclick="switchTab('sleep', this)">睡眠</button>
-  <button class="tab-btn" onclick="switchTab('diaper', this)">おむつ</button>
+  <button class="tab-btn active" data-tab="today"   onclick="switchTab('today', this)">今日</button>
+  <button class="tab-btn"        data-tab="feeding" onclick="switchTab('feeding', this)">授乳</button>
+  <button class="tab-btn"        data-tab="sleep"   onclick="switchTab('sleep', this)">睡眠</button>
+  <button class="tab-btn"        data-tab="diaper"  onclick="switchTab('diaper', this)">おむつ</button>
+</div>
+
+<div id="period-bar" class="period-bar">
+  <span class="period-label">表示期間：</span>
+  <button onclick="setPeriod(7)"  class="period-btn {% if days == 7  %}active{% endif %}">7日</button>
+  <button onclick="setPeriod(14)" class="period-btn {% if days == 14 %}active{% endif %}">14日</button>
+  <button onclick="setPeriod(30)" class="period-btn {% if days == 30 %}active{% endif %}">30日</button>
 </div>
 
 <!-- ===== 今日 ===== -->
@@ -169,7 +185,7 @@
   </div>
 
   <div class="card">
-    <h2>授乳サマリ（7日間）</h2>
+    <h2>授乳サマリ（{{ days }}日間）</h2>
     <canvas id="feedingChart"></canvas>
     <table style="margin-top:12px">
       <tr><th>日付</th><th>回数</th><th>合計</th></tr>
@@ -214,7 +230,7 @@
   </div>
 
   <div class="card">
-    <h2>睡眠サマリ（7日間）</h2>
+    <h2>睡眠サマリ（{{ days }}日間）</h2>
     <canvas id="sleepChart"></canvas>
     <table style="margin-top:12px">
       <tr><th>日付</th><th>回数</th><th>合計時間</th></tr>
@@ -257,7 +273,7 @@
   </div>
 
   <div class="card">
-    <h2>おむつ推移（7日間）</h2>
+    <h2>おむつ推移（{{ days }}日間）</h2>
     <canvas id="diaperChart"></canvas>
     <table style="margin-top:12px">
       <tr><th>日付</th><th>合計</th><th>うんち</th><th>おしっこ</th></tr>
@@ -281,7 +297,26 @@ function switchTab(name, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   btn.classList.add('active');
+  document.getElementById('period-bar').style.display = name === 'today' ? 'none' : 'flex';
 }
+
+function setPeriod(days) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('days', days);
+  const activePanel = document.querySelector('.tab-panel.active');
+  if (activePanel) url.searchParams.set('tab', activePanel.id.replace('tab-', ''));
+  window.location.href = url.toString();
+}
+
+(function() {
+  const tab = new URLSearchParams(window.location.search).get('tab');
+  if (tab && tab !== 'today') {
+    const btn = document.querySelector(`[data-tab="${tab}"]`);
+    if (btn) switchTab(tab, btn);
+  } else {
+    document.getElementById('period-bar').style.display = 'none';
+  }
+})();
 
 const labels = {{ feeding_summaries | map(attribute='date') | list | tojson }};
 

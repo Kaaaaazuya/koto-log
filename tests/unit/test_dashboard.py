@@ -117,6 +117,14 @@ def test_dashboard_renders_timeline(client):
     assert "🍼" in resp.text
 
 
+def test_dashboard_accepts_days_param(client):
+    """?days=14 が受け付けられ、カードタイトルに期間が反映される。"""
+    with patch("kotolog.db.crud.query_records", return_value=[]):
+        resp = client.get(f"/dashboard?token={TOKEN}&days=14")
+    assert resp.status_code == 200
+    assert "14日間" in resp.text
+
+
 def test_dashboard_sleep_summary_str(client):
     """睡眠合計時間がサマリーカードに表示される。"""
     with patch("kotolog.db.crud.query_records", return_value=[_FAKE_SLEEP]):
