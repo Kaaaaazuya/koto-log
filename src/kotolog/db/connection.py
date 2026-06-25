@@ -45,7 +45,9 @@ class _LibsqlConn:
     def __init__(self, raw: Any) -> None:
         self._raw = raw
 
-    def execute(self, sql: str, parameters: tuple = ()) -> _LibsqlCursor:
+    def execute(self, sql: str, parameters: tuple | list = ()) -> _LibsqlCursor:
+        if isinstance(parameters, list):
+            parameters = tuple(parameters)
         return _LibsqlCursor(self._raw.execute(sql, parameters))
 
     def executescript(self, sql: str) -> None:
