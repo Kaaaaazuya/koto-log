@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>koto-log {{ title }}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333; padding: 24px; }
+    h1 { font-size: 1.3rem; margin-bottom: 20px; color: #555; }
+    .card { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); max-width: 520px; }
+    label { display: block; font-size: .85rem; color: #888; margin: 12px 0 4px; }
+    input, select { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem; }
+    .btn { display: inline-block; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: .95rem; text-decoration: none; }
+    .btn-primary { background: #06c755; color: #fff; }
+    .btn-secondary { background: #eee; color: #555; }
+    .btn:hover { opacity: .85; }
+    .row { display: flex; gap: 12px; }
+    .row > div { flex: 1; }
+    .buttons { margin-top: 20px; display: flex; gap: 12px; }
+    .hint { font-size: .8rem; color: #aaa; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <h1>{{ title }}</h1>
+
+  <div class="card">
+    <form method="POST" action="{{ action }}">
+      <label>種別 <span style="color:#c0392b">*</span></label>
+      <select name="type" required>
+        {% for key, label in type_labels.items() %}
+        <option value="{{ key }}" {% if record and record.type == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+
+      <label>サブ種別</label>
+      <input type="text" name="sub_type" value="{{ record.sub_type if record else '' }}"
+             placeholder="母乳 / ミルク / うんち など">
+
+      <div class="row">
+        <div>
+          <label>量</label>
+          <input type="number" name="amount" step="any" value="{{ record.amount | int if record and record.amount else '' }}">
+        </div>
+        <div>
+          <label>単位</label>
+          <input type="text" name="unit" value="{{ record.unit if record and record.unit else 'ml' }}">
+        </div>
+      </div>
+
+      <label>開始 <span style="color:#c0392b">*</span></label>
+      <input type="datetime-local" name="started_at" required
+             value="{{ record.started_at_input if record else '' }}">
+
+      <label>終了</label>
+      <input type="datetime-local" name="ended_at"
+             value="{{ record.ended_at_input if record else '' }}">
+      <p class="hint">睡眠の終了時刻など。空欄可。</p>
+
+      <label>メモ</label>
+      <input type="text" name="note" value="{{ record.note if record and record.note else '' }}">
+
+      <div class="buttons">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a class="btn btn-secondary" href="/admin/records?token={{ token }}">キャンセル</a>
+      </div>
+    </form>
+  </div>
+</body>
+</html>
