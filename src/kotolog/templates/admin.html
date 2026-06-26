@@ -15,7 +15,7 @@
       width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px;
       font-size: 1rem; margin-bottom: 12px;
     }
-    .btn { display: inline-block; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: .95rem; }
+    .btn { display: inline-block; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: .95rem; text-decoration: none; }
     .btn-primary { background: #06c755; color: #fff; }
     .btn-secondary { background: #eee; color: #555; }
     .btn:hover { opacity: .85; }
@@ -46,6 +46,14 @@
 
       <button type="submit" class="btn btn-primary">保存</button>
     </form>
+  </div>
+
+  <div class="card">
+    <h2>記録の管理</h2>
+    <p style="font-size:.85rem;color:#888;margin-bottom:12px;">
+      過去の記録を手動で追加・編集・削除します（AIを介さない確実な修正用）。
+    </p>
+    <a class="btn btn-primary" href="/admin/records?token={{ token }}">記録を管理</a>
   </div>
 
   <div class="card">

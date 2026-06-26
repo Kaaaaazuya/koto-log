@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>koto-log 記録の管理</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333; padding: 24px; }
+    h1 { font-size: 1.4rem; margin-bottom: 16px; color: #555; }
+    .card { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 16px; }
+    label { display: block; font-size: .8rem; color: #888; margin-bottom: 4px; }
+    select, input[type="number"] { padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: .95rem; }
+    .btn { display: inline-block; padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: .9rem; text-decoration: none; }
+    .btn-primary { background: #06c755; color: #fff; }
+    .btn-secondary { background: #eee; color: #555; }
+    .btn-danger { background: #fde7e7; color: #c0392b; }
+    .btn:hover { opacity: .85; }
+    .notice { padding: 10px 14px; border-radius: 6px; font-size: .9rem; margin-bottom: 16px; }
+    .notice-ok { background: #e6f4ea; color: #2d7a3a; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
+    th { color: #999; font-weight: 600; font-size: .8rem; }
+    .actions { display: flex; gap: 8px; }
+    .empty { color: #aaa; padding: 24px; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>記録の管理</h1>
+
+  {% if saved %}<div class="notice notice-ok">保存しました。</div>{% endif %}
+  {% if deleted %}<div class="notice notice-ok">削除しました。</div>{% endif %}
+
+  <div class="card">
+    <form method="GET" action="/admin/records" class="toolbar">
+      <input type="hidden" name="token" value="{{ token }}">
+      <div>
+        <label>期間（日）</label>
+        <input type="number" name="days" value="{{ days }}" min="1" max="365">
+      </div>
+      <div>
+        <label>種別</label>
+        <select name="type">
+          <option value="">すべて</option>
+          {% for key, label in type_labels.items() %}
+          <option value="{{ key }}" {% if type == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-secondary">絞り込む</button>
+      <a class="btn btn-primary" href="/admin/records/new?token={{ token }}">＋ 追加</a>
+    </form>
+  </div>
+
+  <div class="card">
+    {% if records %}
+    <table>
+      <thead>
+        <tr><th>種別</th><th>サブ種別</th><th>量</th><th>開始</th><th>終了</th><th>メモ</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for r in records %}
+        <tr>
+          <td>{{ r.type_label }}</td>
+          <td>{{ r.sub_type or "" }}</td>
+          <td>{% if r.amount is not none and r.amount != "" %}{{ r.amount | int if r.amount == r.amount | int else r.amount }}{{ r.unit or "" }}{% endif %}</td>
+          <td>{{ r.started_at_disp }}</td>
+          <td>{{ r.ended_at_disp }}</td>
+          <td>{{ r.note or "" }}</td>
+          <td>
+            <div class="actions">
+              <a class="btn btn-secondary" href="/admin/records/{{ r.id }}/edit?token={{ token }}">編集</a>
+              <form method="POST" action="/admin/records/{{ r.id }}/delete?token={{ token }}"
+                    onsubmit="return confirm('この記録を削除しますか？');" style="margin:0;">
+                <button type="submit" class="btn btn-danger">削除</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">該当する記録はありません。</div>
+    {% endif %}
+  </div>
+</body>
+</html>
