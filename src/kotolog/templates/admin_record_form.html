@@ -40,7 +40,7 @@
       <div class="row">
         <div>
           <label>量</label>
-          <input type="number" name="amount" step="any" value="{{ record.amount | int if record and record.amount else '' }}">
+          <input type="number" name="amount" step="any" value="{% if record and record.amount is not none %}{{ record.amount | int if record.amount == record.amount | int else record.amount }}{% endif %}">
         </div>
         <div>
           <label>単位</label>

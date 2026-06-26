@@ -42,7 +42,10 @@ def _get_conn_and_child():
 
 def _to_iso_jst(dt_local: str) -> str:
     """datetime-local の "YYYY-MM-DDTHH:MM" を JST ISO8601 へ変換する。"""
-    return datetime.fromisoformat(dt_local).replace(tzinfo=JST).isoformat()
+    try:
+        return datetime.fromisoformat(dt_local).replace(tzinfo=JST).isoformat()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format")
 
 
 def _to_input_value(iso: str | None) -> str:
@@ -189,15 +192,19 @@ async def admin_record_create(
     if type not in set(RecordType):
         raise HTTPException(status_code=400, detail="Invalid type")
     conn, child_id = _get_conn_and_child()
+    start_iso = _to_iso_jst(started_at)
+    end_iso = _to_iso_jst(ended_at) if ended_at.strip() else None
+    if end_iso and end_iso < start_iso:
+        raise HTTPException(status_code=400, detail="ended_at cannot be before started_at")
     crud.insert_record(
         conn,
         child_id=child_id,
         type=type,
-        started_at=_to_iso_jst(started_at),
+        started_at=start_iso,
         sub_type=normalize_sub_type(type, sub_type),
         amount=_parse_amount(amount),
         unit=unit.strip() or None,
-        ended_at=_to_iso_jst(ended_at) if ended_at.strip() else None,
+        ended_at=end_iso,
         note=note.strip() or None,
     )
     return RedirectResponse(f"/admin/records?token={token or ''}&saved=1", status_code=303)
@@ -242,6 +249,10 @@ async def admin_record_update(
     if type not in set(RecordType):
         raise HTTPException(status_code=400, detail="Invalid type")
     conn, _ = _get_conn_and_child()
+    start_iso = _to_iso_jst(started_at)
+    end_iso = _to_iso_jst(ended_at) if ended_at.strip() else None
+    if end_iso and end_iso < start_iso:
+        raise HTTPException(status_code=400, detail="ended_at cannot be before started_at")
     crud.update_record(
         conn,
         record_id,
@@ -250,8 +261,8 @@ async def admin_record_update(
             "sub_type": normalize_sub_type(type, sub_type),
             "amount": _parse_amount(amount),
             "unit": unit.strip() or None,
-            "started_at": _to_iso_jst(started_at),
-            "ended_at": _to_iso_jst(ended_at) if ended_at.strip() else None,
+            "started_at": start_iso,
+            "ended_at": end_iso,
             "note": note.strip() or None,
         },
     )

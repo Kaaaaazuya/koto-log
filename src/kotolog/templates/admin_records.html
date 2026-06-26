@@ -64,7 +64,7 @@
         <tr>
           <td>{{ r.type_label }}</td>
           <td>{{ r.sub_type or "" }}</td>
-          <td>{% if r.amount %}{{ r.amount | int }}{{ r.unit or "" }}{% endif %}</td>
+          <td>{% if r.amount is not none and r.amount != "" %}{{ r.amount | int if r.amount == r.amount | int else r.amount }}{{ r.unit or "" }}{% endif %}</td>
           <td>{{ r.started_at_disp }}</td>
           <td>{{ r.ended_at_disp }}</td>
           <td>{{ r.note or "" }}</td>

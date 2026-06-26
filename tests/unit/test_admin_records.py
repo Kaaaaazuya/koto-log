@@ -186,6 +186,38 @@ def test_update_calls_update_record(client):
 # --- 削除 -------------------------------------------------------------------
 
 
+def test_create_invalid_date_returns_400(client):
+    resp = client.post(
+        f"/admin/records?token={TOKEN}",
+        data={"type": "feeding", "started_at": "not-a-date"},
+    )
+    assert resp.status_code == 400
+
+
+def test_create_ended_before_started_returns_400(client):
+    resp = client.post(
+        f"/admin/records?token={TOKEN}",
+        data={
+            "type": "sleep",
+            "started_at": "2026-06-26T10:00",
+            "ended_at": "2026-06-26T09:00",
+        },
+    )
+    assert resp.status_code == 400
+
+
+def test_update_ended_before_started_returns_400(client):
+    resp = client.post(
+        f"/admin/records/7?token={TOKEN}",
+        data={
+            "type": "sleep",
+            "started_at": "2026-06-26T10:00",
+            "ended_at": "2026-06-26T09:00",
+        },
+    )
+    assert resp.status_code == 400
+
+
 def test_delete_calls_delete_record(client):
     with patch("kotolog.db.crud.delete_record", return_value=True) as dele:
         resp = client.post(f"/admin/records/7/delete?token={TOKEN}")
