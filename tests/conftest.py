@@ -81,6 +81,7 @@ def cfg() -> Config:
         line_channel_secret=None,
         line_channel_access_token=None,
         turso_auth_token=None,
+        dashboard_token=None,
     )
 
 
@@ -92,7 +93,7 @@ class FakeLLM:
         self.scripted = list(scripted)
         self.seen_messages: list = []
 
-    def complete(self, messages, tools=None):
+    def complete(self, messages, tools=None, tool_choice=None):
         self.seen_messages.append(messages)
         return self.scripted.pop(0)
 

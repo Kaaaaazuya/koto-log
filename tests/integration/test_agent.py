@@ -2,9 +2,21 @@
 
 スクリプト化した FakeLLM（conftest）に差し替え、tool-use ループ・確認サマリ・
 聞き返し・テキスト混入フォールバック・未知ツールの扱いを決定論的に検証する。
+
+extract_records（P6）は別関心事のため autouse でパッチし、ループ挙動に集中する。
 """
 
+from unittest.mock import patch
+
+import pytest
+
 from kotolog.agent.loop import Agent
+
+
+@pytest.fixture(autouse=True)
+def _no_extraction():
+    with patch("kotolog.agent.loop.extract_records", return_value=[]):
+        yield
 
 
 def test_save_flow_returns_confirmation_and_writes_db(executor, conn, fake_llm, resp, tc):
