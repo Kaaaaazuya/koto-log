@@ -32,7 +32,7 @@ def build_morning_text(remaining: int, llm_client) -> str:
         f"出産予定日まであと{remaining}日の妊婦への応援メッセージを常態で1文だけ返せ。"
         "余計な前置きや説明は不要。"
     )
-    resp = llm_client.complete([{"role": "user", "content": prompt}])
+    resp = llm_client.complete([{"role": "user", "content": prompt}], operation="push")
     one_line = (resp.choices[0].message.content or "").strip()
 
     return f"おはよう！{day_label}\n{one_line}"
@@ -42,6 +42,7 @@ def _run_morning_push() -> None:
     """スケジューラから呼ばれる同期ジョブ本体。"""
     from kotolog.line.push import send_push
     from kotolog.llm.client import LLMClient
+    from kotolog.obs.usage import new_trace_id, sink_from_config
 
     cfg = load_config()
     if not cfg.line_channel_access_token:
@@ -63,7 +64,8 @@ def _run_morning_push() -> None:
     if remaining < 0:
         return
 
-    llm = LLMClient(cfg)
+    new_trace_id()  # この push ジョブの LLM 呼び出しを 1 トレースに紐付ける。
+    llm = LLMClient(cfg, sink=sink_from_config(cfg))
     text = build_morning_text(remaining, llm)
     send_push(line_user_id, text, cfg.line_channel_access_token)
 

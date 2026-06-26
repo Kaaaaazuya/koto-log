@@ -14,6 +14,7 @@ import re
 from dataclasses import dataclass
 
 from kotolog.agent.extractor import extract_records, format_confirmation
+from kotolog.obs.usage import new_trace_id
 from kotolog.tools.definitions import TOOLS
 from kotolog.tools.executor import ToolExecutor
 
@@ -99,6 +100,8 @@ class Agent:
 
     def handle(self, user_text: str, history: list[dict] | None = None) -> str:
         """1 ターンを処理し、ユーザーへ返す文字列を返す。"""
+        # この handle() 内の全 LLM 呼び出し（extract / loop）を 1 トレースに紐付ける。
+        new_trace_id()
         extracted = extract_records(user_text, self.client)
         if extracted:
             saved = []
@@ -118,7 +121,7 @@ class Agent:
         messages.append({"role": "user", "content": user_text})
 
         for _ in range(self.max_iters):
-            resp = self.client.complete(messages, tools=TOOLS)
+            resp = self.client.complete(messages, tools=TOOLS, operation="loop")
             message = resp.choices[0].message
             calls = _extract_calls(message)
 

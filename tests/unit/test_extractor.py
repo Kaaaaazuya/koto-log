@@ -46,10 +46,12 @@ class FakeLLMClient:
         self._response = response
         self.last_tools: list | None = None
         self.last_tool_choice: dict | None = None
+        self.last_operation: str | None = None
 
-    def complete(self, messages, tools=None, tool_choice=None):
+    def complete(self, messages, tools=None, tool_choice=None, *, operation="loop"):
         self.last_tools = tools
         self.last_tool_choice = tool_choice
+        self.last_operation = operation
         return self._response
 
 
@@ -112,6 +114,13 @@ def test_extract_passes_extract_tool_only():
     assert llm.last_tools is not None
     assert len(llm.last_tools) == 1
     assert llm.last_tools[0]["function"]["name"] == "extract_records"
+
+
+def test_extract_tags_operation_extract():
+    """抽出呼び出しは operation="extract" で計測される（ADR-0002）。"""
+    llm = FakeLLMClient(_extract_resp([]))
+    extract_records("テスト", llm)
+    assert llm.last_operation == "extract"
 
 
 def test_extract_returns_empty_when_no_tool_calls():

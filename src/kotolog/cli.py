@@ -12,6 +12,7 @@ from kotolog.config import load_config
 from kotolog.db import crud
 from kotolog.db.connection import connect
 from kotolog.llm.client import LLMClient
+from kotolog.obs.usage import sink_from_config
 from kotolog.tools.executor import ToolExecutor
 
 JST = timezone(timedelta(hours=9))
@@ -24,7 +25,8 @@ def build_agent(config=None) -> Agent:
     crud.init_db(conn)
     child_id = crud.ensure_child(conn, config.default_child)
     executor = ToolExecutor(conn=conn, child_id=child_id, now=datetime.now(JST))
-    return Agent(client=LLMClient(config), executor=executor)
+    client = LLMClient(config, sink=sink_from_config(config))
+    return Agent(client=client, executor=executor)
 
 
 def main() -> None:
