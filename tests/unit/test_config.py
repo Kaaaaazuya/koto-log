@@ -29,3 +29,13 @@ def test_load_config_defaults(monkeypatch):
     assert cfg.db_url
     assert cfg.default_child
     assert cfg.api_key is None
+
+
+def test_usage_log_defaults_off(monkeypatch):
+    monkeypatch.delenv("KOTOLOG_USAGE_LOG", raising=False)
+    assert load_config().usage_log is False
+
+
+def test_usage_log_enabled_by_env(monkeypatch):
+    monkeypatch.setenv("KOTOLOG_USAGE_LOG", "1")
+    assert load_config().usage_log is True

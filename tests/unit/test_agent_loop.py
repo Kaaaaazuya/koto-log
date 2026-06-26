@@ -52,9 +52,11 @@ class FakeLLMClient:
     def __init__(self, responses: list) -> None:
         self._responses = list(responses)
         self.calls: list[list[dict]] = []
+        self.operations: list[str] = []
 
-    def complete(self, messages, tools=None, tool_choice=None):
+    def complete(self, messages, tools=None, tool_choice=None, *, operation="loop"):
         self.calls.append(messages)
+        self.operations.append(operation)
         return self._responses.pop(0)
 
 
@@ -199,3 +201,36 @@ def test_empty_content_returns_empty_string():
     result = agent.handle("テスト")
 
     assert result == ""
+
+
+def test_loop_calls_tagged_with_loop_operation():
+    """ツール使用ループの complete は operation="loop" で計測される（ADR-0002）。"""
+    llm = FakeLLMClient(
+        [_tool_resp("save_record", {"type": "diaper", "started_at": "now"}), _text_resp("記録した")]
+    )
+    agent = Agent(client=llm, executor=FakeExecutor())
+
+    agent.handle("うんち")
+
+    assert llm.operations == ["loop", "loop"]
+
+
+def test_handle_sets_trace_id():
+    """handle() の冒頭でトレース ID が発行され、呼び出し中は参照できる。"""
+    from kotolog.obs.usage import current_trace_id
+
+    seen = {}
+
+    class TraceCapturingExecutor(FakeExecutor):
+        def execute(self, name, args):
+            seen["trace_id"] = current_trace_id()
+            return super().execute(name, args)
+
+    llm = FakeLLMClient(
+        [_tool_resp("save_record", {"type": "diaper", "started_at": "now"}), _text_resp("ok")]
+    )
+    agent = Agent(client=llm, executor=TraceCapturingExecutor())
+
+    agent.handle("うんち")
+
+    assert seen["trace_id"]  # 非空のトレース ID が設定されている
