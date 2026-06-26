@@ -92,11 +92,17 @@ def test_extract_returns_multiple_records():
 
 
 def test_extract_forces_tool_choice():
-    """tool_choice が extract_records ツールを指定することを確認。"""
+    """tool_choice が OpenAI 仕様で extract_records を強制することを確認。
+
+    LiteLLM は OpenAI 仕様 {"type": "function", "function": {"name": ...}} を
+    要求する。Anthropic ネイティブ形式だと本番で検証エラーになるため固定する。
+    """
     llm = FakeLLMClient(_extract_resp([]))
     extract_records("テスト", llm)
-    assert llm.last_tool_choice is not None
-    assert llm.last_tool_choice.get("name") == "extract_records"
+    assert llm.last_tool_choice == {
+        "type": "function",
+        "function": {"name": "extract_records"},
+    }
 
 
 def test_extract_passes_extract_tool_only():
