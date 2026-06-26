@@ -28,6 +28,7 @@ class Config:
     line_channel_access_token: str | None
     turso_auth_token: str | None
     dashboard_token: str | None
+    usage_log: bool = False
 
 
 def load_config() -> Config:
@@ -44,4 +45,5 @@ def load_config() -> Config:
         line_channel_access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN") or None,
         turso_auth_token=os.getenv("TURSO_AUTH_TOKEN") or None,
         dashboard_token=os.getenv("KOTOLOG_DASHBOARD_TOKEN") or None,
+        usage_log=os.getenv("KOTOLOG_USAGE_LOG", "").lower() in ("1", "true", "yes"),
     )

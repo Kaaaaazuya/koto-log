@@ -69,6 +69,7 @@ def extract_records(text: str, llm_client) -> list[dict]:
         ],
         tools=[_EXTRACT_TOOL],
         tool_choice={"type": "function", "function": {"name": "extract_records"}},
+        operation="extract",
     )
     message = resp.choices[0].message
     tool_calls = getattr(message, "tool_calls", None)

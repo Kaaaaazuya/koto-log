@@ -53,6 +53,14 @@ def test_llm_is_called_once():
     llm.complete.assert_called_once()
 
 
+def test_morning_text_tags_operation_push():
+    """朝 push の LLM 呼び出しは operation="push" で計測される（ADR-0002）。"""
+    llm = _fake_llm("応援してる。")
+    build_morning_text(10, llm)
+    _, kwargs = llm.complete.call_args
+    assert kwargs.get("operation") == "push"
+
+
 # ---------------------------------------------------------------------------
 # send_push
 # ---------------------------------------------------------------------------

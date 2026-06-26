@@ -92,16 +92,24 @@ class FakeLLM:
     def __init__(self, scripted):
         self.scripted = list(scripted)
         self.seen_messages: list = []
+        self.seen_operations: list = []
 
-    def complete(self, messages, tools=None, tool_choice=None):
+    def complete(self, messages, tools=None, tool_choice=None, *, operation="loop"):
         self.seen_messages.append(messages)
+        self.seen_operations.append(operation)
         return self.scripted.pop(0)
 
 
-def make_resp(content=None, tool_calls=None):
-    """LiteLLM の completion 応答を模した構造を作る。"""
+def make_resp(content=None, tool_calls=None, usage=None):
+    """LiteLLM の completion 応答を模した構造を作る。
+
+    usage を渡すと {prompt,completion,total}_tokens を持つ usage オブジェクトを載せる。
+    """
     msg = SimpleNamespace(content=content, tool_calls=tool_calls)
-    return SimpleNamespace(choices=[SimpleNamespace(message=msg)])
+    resp = SimpleNamespace(choices=[SimpleNamespace(message=msg)], model="fake-model")
+    if usage is not None:
+        resp.usage = SimpleNamespace(**usage)
+    return resp
 
 
 def make_tc(name, args, id="call_1"):
