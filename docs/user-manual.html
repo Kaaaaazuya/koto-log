@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>koto-log ユーザーマニュアル</title>
+  <style>
+    :root {
+      --feeding-bg: #FFE7D6;
+      --feeding-accent: #C07248;
+      --sleep-bg: #E7E3F7;
+      --sleep-accent: #7A68C0;
+      --diaper-bg: #D5EFE0;
+      --diaper-accent: #4FA97E;
+      --temp-bg: #FCEBC4;
+      --temp-accent: #B58D2A;
+      --text-primary: #574E45;
+      --text-secondary: #8C8178;
+      --text-muted: #A89E94;
+      --border-color: #EFE5DA;
+      --page-bg: #FFF8F2;
+      --card-bg: #fff;
+      --header-bg: #574E45;
+      --accent: #C07248;
+      --accent-light: #FFE7D6;
+      --sidebar-width: 260px;
+      --note-bg: #FFF3E0;
+      --note-border: #FFB74D;
+      --tip-bg: #E8F5E9;
+      --tip-border: #66BB6A;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, 'Hiragino Sans', 'Yu Gothic', sans-serif;
+      background: var(--page-bg);
+      color: var(--text-primary);
+      line-height: 1.7;
+    }
+
+    /* ===== HEADER ===== */
+    .site-header {
+      background: var(--header-bg);
+      color: #fff;
+      padding: 16px 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.2);
+    }
+    .site-header .logo { font-size: 20px; font-weight: 700; letter-spacing: .02em; }
+    .site-header .subtitle { font-size: 12px; opacity: .65; }
+    .menu-toggle {
+      display: none;
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 22px;
+      cursor: pointer;
+      margin-left: auto;
+      padding: 4px 8px;
+    }
+
+    /* ===== LAYOUT ===== */
+    .layout {
+      display: flex;
+      min-height: calc(100vh - 56px);
+    }
+
+    /* ===== SIDEBAR ===== */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--card-bg);
+      border-right: 1px solid var(--border-color);
+      position: sticky;
+      top: 56px;
+      height: calc(100vh - 56px);
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .sidebar-inner { padding: 20px 0; }
+    .nav-section-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      color: var(--text-muted);
+      padding: 14px 20px 6px;
+      text-transform: uppercase;
+    }
+    .nav-section-label:first-child { padding-top: 6px; }
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 20px;
+      font-size: 13.5px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: background .15s, color .15s;
+      border-left: 3px solid transparent;
+    }
+    .nav-link:hover { background: var(--accent-light); color: var(--accent); }
+    .nav-link.active {
+      background: var(--accent-light);
+      color: var(--accent);
+      border-left-color: var(--accent);
+      font-weight: 600;
+    }
+    .nav-icon { font-size: 15px; width: 20px; text-align: center; }
+
+    /* ===== MAIN ===== */
+    .main {
+      flex: 1;
+      min-width: 0;
+      padding: 40px 48px 80px;
+      max-width: 860px;
+    }
+
+    /* ===== SECTION STRUCTURE ===== */
+    .doc-section {
+      margin-bottom: 64px;
+      scroll-margin-top: 80px;
+    }
+    .section-anchor { display: block; }
+
+    h1.page-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+    .page-subtitle {
+      font-size: 15px;
+      color: var(--text-secondary);
+      margin-bottom: 40px;
+      padding-bottom: 24px;
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    h2.section-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2.section-title .s-icon { font-size: 22px; }
+
+    h3.sub-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      margin: 24px 0 10px;
+    }
+
+    p { margin-bottom: 12px; font-size: 14.5px; }
+
+    /* ===== EXAMPLE BUBBLES ===== */
+    .chat-demo {
+      background: #f0f0f0;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin: 16px 0;
+    }
+    .chat-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .chat-row:last-child { margin-bottom: 0; }
+    .chat-row.user { flex-direction: row-reverse; }
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .avatar.bot { background: #06c755; color: #fff; font-size: 14px; }
+    .avatar.user-av { background: var(--accent-light); font-size: 16px; }
+    .bubble {
+      max-width: 75%;
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 13.5px;
+      line-height: 1.55;
+      white-space: pre-line;
+    }
+    .chat-row.user .bubble {
+      background: #06c755;
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .chat-row.bot .bubble {
+      background: #fff;
+      color: var(--text-primary);
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+
+    /* ===== EXAMPLE TABLE ===== */
+    .example-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      margin: 16px 0;
+    }
+    .example-table th {
+      background: var(--header-bg);
+      color: #fff;
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 12px;
+    }
+    .example-table th:first-child { border-radius: 8px 0 0 0; }
+    .example-table th:last-child  { border-radius: 0 8px 0 0; }
+    .example-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-primary);
+      vertical-align: top;
+    }
+    .example-table tr:last-child td { border-bottom: none; }
+    .example-table tr:nth-child(even) td { background: #fdfaf7; }
+    .example-table .msg { font-family: 'Menlo', monospace; color: var(--accent); font-size: 13px; }
+
+    /* ===== NOTE / TIP ===== */
+    .note, .tip {
+      border-left: 4px solid;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      margin: 16px 0;
+      font-size: 13.5px;
+    }
+    .note { background: var(--note-bg); border-color: var(--note-border); }
+    .note::before { content: '📌 '; font-weight: 700; }
+    .tip { background: var(--tip-bg); border-color: var(--tip-border); }
+    .tip::before { content: '💡 '; font-weight: 700; }
+
+    /* ===== BADGE ===== */
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-right: 4px;
+    }
+    .badge-feeding { background: var(--feeding-bg); color: var(--feeding-accent); }
+    .badge-sleep   { background: var(--sleep-bg);   color: var(--sleep-accent); }
+    .badge-diaper  { background: var(--diaper-bg);  color: var(--diaper-accent); }
+    .badge-temp    { background: var(--temp-bg);    color: var(--temp-accent); }
+    .badge-admin   { background: #E8EAF6; color: #3949AB; }
+
+    /* ===== STEP CARD ===== */
+    .steps { list-style: none; margin: 16px 0; }
+    .steps li {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 14px;
+      align-items: flex-start;
+    }
+    .step-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .step-body { font-size: 14px; }
+    .step-body strong { display: block; margin-bottom: 2px; }
+
+    /* ===== FEATURE GRID ===== */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 14px;
+      margin: 20px 0;
+    }
+    .feature-card {
+      background: var(--card-bg);
+      border-radius: 14px;
+      padding: 18px 16px;
+      box-shadow: 0 2px 8px rgba(120,100,80,.07);
+      border: 1px solid var(--border-color);
+    }
+    .feature-card .fc-icon { font-size: 28px; margin-bottom: 8px; }
+    .feature-card .fc-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .feature-card .fc-desc { font-size: 12.5px; color: var(--text-secondary); }
+
+    /* ===== URL CHIP ===== */
+    .url-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-family: 'Menlo', monospace;
+      font-size: 12.5px;
+      color: var(--accent);
+      margin: 4px 0;
+    }
+
+    /* ===== CHANGELOG ===== */
+    .changelog-entry {
+      border-left: 3px solid var(--border-color);
+      padding-left: 16px;
+      margin-bottom: 24px;
+    }
+    .changelog-entry .cl-version {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+    .changelog-entry .cl-date {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .changelog-entry ul { padding-left: 18px; font-size: 13.5px; }
+    .changelog-entry li { margin-bottom: 4px; }
+
+    /* ===== RICH MENU IMAGE PLACEHOLDER ===== */
+    .menu-preview {
+      background: var(--card-bg);
+      border: 2px dashed var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+      margin: 16px 0;
+    }
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      max-width: 360px;
+      margin: 12px auto 0;
+    }
+    .menu-cell {
+      background: #06c755;
+      color: #fff;
+      border-radius: 8px;
+      padding: 16px 8px;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      .menu-toggle { display: block; }
+      .sidebar {
+        position: fixed;
+        top: 56px;
+        left: 0;
+        bottom: 0;
+        z-index: 200;
+        transform: translateX(-100%);
+        transition: transform .25s ease;
+        box-shadow: 4px 0 12px rgba(0,0,0,.1);
+      }
+      .sidebar.open { transform: translateX(0); }
+      .overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        top: 56px;
+        background: rgba(0,0,0,.3);
+        z-index: 150;
+      }
+      .overlay.open { display: block; }
+      .main { padding: 24px 20px 60px; }
+      .feature-grid { grid-template-columns: repeat(2, 1fr); }
+      h1.page-title { font-size: 22px; }
+      h2.section-title { font-size: 17px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="site-header">
+  <div>
+    <div class="logo">koto-log</div>
+    <div class="subtitle">育児記録エージェント — ユーザーマニュアル</div>
+  </div>
+  <button class="menu-toggle" id="menuToggle" aria-label="メニューを開く">☰</button>
+</header>
+
+<div class="overlay" id="overlay"></div>
+
+<div class="layout">
+
+  <!-- ===== SIDEBAR ===== -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-inner">
+      <div class="nav-section-label">はじめに</div>
+      <a class="nav-link" href="#overview"><span class="nav-icon">🏠</span>アプリ概要</a>
+      <a class="nav-link" href="#quick-start"><span class="nav-icon">🚀</span>はじめ方</a>
+
+      <div class="nav-section-label">LINEで記録する</div>
+      <a class="nav-link" href="#recording-feeding"><span class="nav-icon">🍼</span>授乳</a>
+      <a class="nav-link" href="#recording-diaper"><span class="nav-icon">👶</span>おむつ</a>
+      <a class="nav-link" href="#recording-sleep"><span class="nav-icon">😴</span>睡眠</a>
+      <a class="nav-link" href="#recording-temp"><span class="nav-icon">🌡️</span>体温</a>
+      <a class="nav-link" href="#bulk-input"><span class="nav-icon">📝</span>まとめ入力</a>
+
+      <div class="nav-section-label">確認・修正</div>
+      <a class="nav-link" href="#query"><span class="nav-icon">📊</span>確認・集計</a>
+      <a class="nav-link" href="#correction"><span class="nav-icon">✏️</span>修正・取り消し</a>
+      <a class="nav-link" href="#shortcuts"><span class="nav-icon">⚡</span>ショートカット</a>
+
+      <div class="nav-section-label">画面・機能</div>
+      <a class="nav-link" href="#dashboard"><span class="nav-icon">📈</span>ダッシュボード</a>
+      <a class="nav-link" href="#notifications"><span class="nav-icon">🔔</span>自動プッシュ通知</a>
+      <a class="nav-link" href="#admin"><span class="nav-icon">⚙️</span>管理画面</a>
+
+      <div class="nav-section-label">参考</div>
+      <a class="nav-link" href="#faq"><span class="nav-icon">❓</span>よくある質問</a>
+      <a class="nav-link" href="#changelog"><span class="nav-icon">📋</span>更新履歴</a>
+    </div>
+  </nav>
+
+  <!-- ===== MAIN ===== -->
+  <main class="main" id="main">
+
+    <h1 class="page-title">koto-log ユーザーマニュアル</h1>
+    <p class="page-subtitle">
+      授乳・睡眠・おむつを自然な言葉で記録する育児エージェントです。
+      LINEに話しかけるだけで記録・確認・修正が完結します。
+    </p>
+
+    <!-- ===== OVERVIEW ===== -->
+    <!-- section: overview -->
+    <section class="doc-section" id="overview">
+      <h2 class="section-title"><span class="s-icon">🏠</span>アプリ概要</h2>
+
+      <p>koto-log は LINE のトーク画面を使って育児記録を管理するエージェントです。「3時にミルク120ml」と送るだけで記録され、「今日は何回飲んだ？」と聞けば即座に集計結果が返ってきます。</p>
+
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="fc-icon">🍼</div>
+          <div class="fc-title">授乳・おむつ・睡眠</div>
+          <div class="fc-desc">自然な言葉で4種類の記録に対応</div>
+        </div>
+        <div class="feature-card">
+          <div class="fc-icon">📊</div>
+          <div class="fc-title">集計・振り返り</div>
+          <div class="fc-desc">今日・昨日・直近7日間の集計をすぐ確認</div>
+        </div>
+        <div class="feature-card">
+          <div class="fc-icon">✏️</div>
+          <div class="fc-title">修正・取り消し</div>
+          <div class="fc-desc">直近記録の量変更・削除がLINEから可能</div>
+        </div>
+        <div class="feature-card">
+          <div class="fc-icon">🔔</div>
+          <div class="fc-title">自動プッシュ通知</div>
+          <div class="fc-desc">毎朝・毎晩に自動でサマリーを送信</div>
+        </div>
+        <div class="feature-card">
+          <div class="fc-icon">📈</div>
+          <div class="fc-title">ダッシュボード</div>
+          <div class="fc-desc">グラフでデータを一覧表示（ブラウザ）</div>
+        </div>
+        <div class="feature-card">
+          <div class="fc-icon">⚙️</div>
+          <div class="fc-title">管理画面</div>
+          <div class="fc-desc">記録の手動追加・編集・削除（ブラウザ）</div>
+        </div>
+      </div>
+
+      <div class="tip">文章を丁寧に書く必要はありません。「母乳」「うんち」「寝た」などの短い言葉だけでも記録できます。</div>
+    </section>
+    <!-- /section: overview -->
+
+    <!-- ===== QUICK START ===== -->
+    <!-- section: quick-start -->
+    <section class="doc-section" id="quick-start">
+      <h2 class="section-title"><span class="s-icon">🚀</span>はじめ方</h2>
+
+      <ol class="steps">
+        <li>
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <strong>LINE で友だち追加する</strong>
+            管理者から共有されたQRコードまたはリンクからkoto-logを友だち追加します。
+          </div>
+        </li>
+        <li>
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <strong>出産予定日（または出生日）を設定する</strong>
+            LINEに <code>due_date 2026-09-15</code> と送信するか、管理画面（<code>/admin</code>）から設定します。<br>
+            設定すると毎朝のカウントダウン通知が届くようになります。
+          </div>
+        </li>
+        <li>
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <strong>記録を始める</strong>
+            「母乳」「ミルク120ml」「うんち」など、育児の出来事をLINEに送るだけです。
+          </div>
+        </li>
+      </ol>
+
+      <div class="note">koto-logはLINEに話しかけると自動でユーザーIDを取得します。管理者による追加設定は不要です。</div>
+
+      <h3 class="sub-title">リッチメニューの設定（推奨）</h3>
+      <p>よく使う記録をリッチメニューのボタンに割り当てると、ワンタップで入力できます。管理者に依頼して設定してもらいましょう。</p>
+
+      <div class="menu-preview">
+        <p style="font-size:12px;margin-bottom:8px;">リッチメニュー構成例</p>
+        <div class="menu-grid">
+          <div class="menu-cell">🤱 母乳</div>
+          <div class="menu-cell">🍼 ミルク</div>
+          <div class="menu-cell">💩 うんち</div>
+          <div class="menu-cell">💧 おしっこ</div>
+          <div class="menu-cell">😴 寝た・起きた</div>
+          <div class="menu-cell">📋 操作一覧</div>
+        </div>
+      </div>
+    </section>
+    <!-- /section: quick-start -->
+
+    <!-- ===== FEEDING ===== -->
+    <!-- section: recording-feeding -->
+    <section class="doc-section" id="recording-feeding">
+      <h2 class="section-title">
+        <span class="s-icon">🍼</span>授乳の記録
+        <span class="badge badge-feeding">授乳</span>
+      </h2>
+
+      <p>「母乳」「ミルク」「搾母乳」の3種類に対応しています。量・時刻は省略可能で、書いた情報だけが保存されます。</p>
+
+      <table class="example-table">
+        <thead>
+          <tr><th>送るメッセージ例</th><th>記録される内容</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="msg">母乳</td>
+            <td>授乳（母乳）を今の時刻で記録</td>
+          </tr>
+          <tr>
+            <td class="msg">ミルク 120ml</td>
+            <td>授乳（ミルク）120ml を今の時刻で記録</td>
+          </tr>
+          <tr>
+            <td class="msg">搾母乳 80ml</td>
+            <td>授乳（搾母乳）80ml を今の時刻で記録</td>
+          </tr>
+          <tr>
+            <td class="msg">3時にミルク 100ml</td>
+            <td>授乳（ミルク）100ml を今日の3:00で記録</td>
+          </tr>
+          <tr>
+            <td class="msg">さっき母乳あげた</td>
+            <td>授乳（母乳）を直前の時刻で記録</td>
+          </tr>
+          <tr>
+            <td class="msg">14時に左胸 10分</td>
+            <td>授乳（左胸）を14:00で記録（メモとして保存）</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="chat-demo">
+        <div class="chat-row user">
+          <div class="avatar user-av">👩</div>
+          <div class="bubble">ミルク 120ml</div>
+        </div>
+        <div class="chat-row bot">
+          <div class="avatar bot">K</div>
+          <div class="bubble">ミルク 120ml（14:32）記録しました ✓</div>
+        </div>
+      </div>
+
+      <div class="tip">「さっき」「お昼ごろ」「3時」のような曖昧な時刻でもOKです。アプリが今日の日本時間に変換して保存します。</div>
+    </section>
+    <!-- /section: recording-feeding -->
+
+    <!-- ===== DIAPER ===== -->
+    <!-- section: recording-diaper -->
+    <section class="doc-section" id="recording-diaper">
+      <h2 class="section-title">
+        <span class="s-icon">👶</span>おむつの記録
+        <span class="badge badge-diaper">おむつ</span>
+      </h2>
+
+      <p>「うんち」「おしっこ」「両方」の3種類に対応しています。</p>
+
+      <table class="example-table">
+        <thead>
+          <tr><th>送るメッセージ例</th><th>記録される内容</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="msg">うんち</td>
+            <td>おむつ（うんち）を今の時刻で記録</td>
+          </tr>
+          <tr>
+            <td class="msg">おしっこ</td>
+            <td>おむつ（おしっこ）を今の時刻で記録</td>
+          </tr>
+          <tr>
+            <td class="msg">両方</td>
+            <td>おむつ（うんち＋おしっこ）を今の時刻で記録</td>
+          </tr>
+          <tr>
+            <td class="msg">さっきうんちした</td>
+            <td>おむつ（うんち）を直前の時刻で記録</td>
+          </tr>
+          <tr>
+            <td class="msg">うんち交換した</td>
+            <td>おむつ（うんち）を今の時刻で記録</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="chat-demo">
+        <div class="chat-row user">
+          <div class="avatar user-av">👩</div>
+          <div class="bubble">うんち</div>
+        </div>
+        <div class="chat-row bot">
+          <div class="avatar bot">K</div>
+          <div class="bubble">おむつ（うんち）（09:15）記録しました ✓</div>
+        </div>
+      </div>
+    </section>
+    <!-- /section: recording-diaper -->
+
+    <!-- ===== SLEEP ===== -->
+    <!-- section: recording-sleep -->
+    <section class="doc-section" id="recording-sleep">
+      <h2 class="section-title">
+        <span class="s-icon">😴</span>睡眠の記録
+        <span class="badge badge-sleep">睡眠</span>
+      </h2>
+
+      <p>「寝た」「起きた」をそれぞれ送るか、「〇時から〇時まで寝てた」のように一度に区間を記録することもできます。</p>
+
+      <table class="example-table">
+        <thead>
+          <tr><th>送るメッセージ例</th><th>記録される内容</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="msg">寝た</td>
+            <td>睡眠開始を今の時刻で記録</td>
+          </tr>
+          <tr>
+            <td class="msg">起きた</td>
+            <td>睡眠終了を今の時刻で記録（直近の睡眠の終了時刻を更新）</td>
+          </tr>
+          <tr>
+            <td class="msg">10時から11時まで昼寝</td>
+            <td>睡眠（10:00〜11:00）を一度に記録</td>
+          </tr>
+          <tr>
+            <td class="msg">さっき寝た</td>
+            <td>睡眠開始を直前の時刻で記録</td>
+          </tr>
+          <tr>
+            <td class="msg">1時間寝てた</td>
+            <td>今から1時間前〜今の睡眠を記録</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="chat-demo">
+        <div class="chat-row user">
+          <div class="avatar user-av">👩</div>
+          <div class="bubble">10時から11時まで昼寝</div>
+        </div>
+        <div class="chat-row bot">
+          <div class="avatar bot">K</div>
+          <div class="bubble">睡眠（10:00〜11:00・60分）記録しました ✓</div>
+        </div>
+      </div>
+    </section>
+    <!-- /section: recording-sleep -->
+
+    <!-- ===== TEMP ===== -->
+    <!-- section: recording-temp -->
+    <section class="doc-section" id="recording-temp">
+      <h2 class="section-title">
+        <span class="s-icon">🌡️</span>体温の記録
+        <span class="badge badge-temp">体温</span>
+      </h2>
+
+      <p>「熱」「体温」と数値を組み合わせて記録します。</p>
+
+      <table class="example-table">
+        <thead>
+          <tr><th>送るメッセージ例</th><th>記録される内容</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="msg">熱 37.2</td>
+            <td>体温 37.2℃ を今の時刻で記録</td>
+          </tr>
+          <tr>
+            <td class="msg">体温 38.5度</td>
+            <td>体温 38.5℃ を今の時刻で記録</td>
+          </tr>
+          <tr>
+            <td class="msg">さっき計ったら37.8</td>
+            <td>体温 37.8℃ を直前の時刻で記録</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <!-- /section: recording-temp -->
+
+    <!-- ===== BULK INPUT ===== -->
+    <!-- section: bulk-input -->
+    <section class="doc-section" id="bulk-input">
+      <h2 class="section-title"><span class="s-icon">📝</span>まとめ入力</h2>
+
+      <p>複数の記録を1つのメッセージにまとめて送ることができます。「さっきまとめて書きたい」というときに便利です。</p>
+
+      <div class="chat-demo">
+        <div class="chat-row user">
+          <div class="avatar user-av">👩</div>
+          <div class="bubble">9時に母乳、10時から11時まで昼寝、11時におしっこ</div>
+        </div>
+        <div class="chat-row bot">
+          <div class="avatar bot">K</div>
+          <div class="bubble">授乳（母乳）（09:00）記録しました ✓
+睡眠（10:00〜11:00）記録しました ✓
+おむつ（おしっこ）（11:00）記録しました ✓</div>
+        </div>
+      </div>
+
+      <div class="tip">まとめ入力は1回のAI解析でまとめて処理されるため、個別に送るより効率的です。記録の取りこぼしを思い出したときにまとめて入力するのに最適です。</div>
+
+      <table class="example-table">
+        <thead>
+          <tr><th>まとめ入力の例</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="msg">7時に母乳、8時にうんち、9時にミルク80ml</td></tr>
+          <tr><td class="msg">さっき寝た、その前にミルク100飲んだ、体温36.8</td></tr>
+          <tr><td class="msg">10時から12時まで昼寝して、起きてすぐ母乳あげた</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <!-- /section: bulk-input -->
+
+    <!-- ===== QUERY ===== -->
+    <!-- section: query -->
+    <section class="doc-section" id="query">
+      <h2 class="section-title"><span class="s-icon">📊</span>確認・集計</h2>
+
+      <p>記録した内容を確認・集計できます。期間を指定したり、種別を絞り込んだりすることもできます。</p>
+
+      <h3 class="sub-title">今日のまとめ</h3>
+      <table class="example-table">
+        <thead>
+          <tr><th>送るメッセージ例</th><th>返ってくる情報</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="msg">今日のまとめ</td>
+            <td>今日の授乳・睡眠・おむつの全記録サマリー</td>
+          </tr>
+          <tr>
+            <td class="msg">昨日のまとめ</td>
+            <td>昨日の全記録サマリー</td>
+          </tr>
+          <tr>
+            <td class="msg">今日は何回飲んだ？</td>
+            <td>今日の授乳回数</td>
+          </tr>
+          <tr>
+            <td class="msg">今日何回うんちした？</td>
+            <td>今日のおむつ（うんち）回数</td>
+          </tr>
+          <tr>
+            <td class="msg">今週のミルク</td>
+            <td>直近7日間のミルク授乳の回数・合計量</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub-title">前回の記録を確認する</h3>
+      <table class="example-table">
+        <thead>
+          <tr><th>送るメッセージ例</th><th>返ってくる情報</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="msg">前回の授乳は？</td>
+            <td>最後に授乳した時刻と経過時間</td>
+          </tr>
+          <tr>
+            <td class="msg">最後に寝たのはいつ？</td>
+            <td>最後に睡眠を記録した時刻と経過時間</td>
+          </tr>
+          <tr>
+            <td class="msg">前回のうんちは？</td>
+            <td>最後におむつ（うんち）を記録した時刻と経過時間</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="chat-demo">
+        <div class="chat-row user">
+          <div class="avatar user-av">👩</div>
+          <div class="bubble">前回の授乳は？</div>
+        </div>
+        <div class="chat-row bot">
+          <div class="avatar bot">K</div>
+          <div class="bubble">前回の授乳は 14:32 のミルク（2時間18分前）です。</div>
+        </div>
+      </div>
+    </section>
+    <!-- /section: query -->
+
+    <!-- ===== CORRECTION ===== -->
+    <!-- section: correction -->
+    <section class="doc-section" id="correction">
+      <h2 class="section-title"><span class="s-icon">✏️</span>修正・取り消し</h2>
+
+      <p>直前に記録した内容を修正または削除できます。</p>
+
+      <h3 class="sub-title">取り消し</h3>
+      <div class="chat-demo">
+        <div class="chat-row user">
+          <div class="avatar user-av">👩</div>
+          <div class="bubble">さっきのなし</div>
+        </div>
+        <div class="chat-row bot">
+          <div class="avatar bot">K</div>
+          <div class="bubble">直近の記録（ミルク 120ml・14:32）を削除しました。</div>
+        </div>
+      </div>
+
+      <h3 class="sub-title">量を直す</h3>
+      <div class="chat-demo">
+        <div class="chat-row user">
+          <div class="avatar user-av">👩</div>
+          <div class="bubble">150に直して</div>
+        </div>
+        <div class="chat-row bot">
+          <div class="avatar bot">K</div>
+          <div class="bubble">ミルクの量を 150ml に修正しました ✓</div>
+        </div>
+      </div>
+
+      <table class="example-table">
+        <thead>
+          <tr><th>送るメッセージ例</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="msg">さっきのなし</td>
+            <td>直近1件を削除</td>
+          </tr>
+          <tr>
+            <td class="msg">消して</td>
+            <td>直近1件を削除</td>
+          </tr>
+          <tr>
+            <td class="msg">150に直して</td>
+            <td>直近記録の量を150に変更</td>
+          </tr>
+          <tr>
+            <td class="msg">さっきのは14時だった</td>
+            <td>直近記録の時刻を14:00に変更</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="note">修正・取り消しは<strong>直近1件のみ</strong>対応しています。それより前の記録を修正したい場合は、管理画面の「記録を管理」から直接編集してください。</div>
+    </section>
+    <!-- /section: correction -->
+
+    <!-- ===== SHORTCUTS ===== -->
+    <!-- section: shortcuts -->
+    <section class="doc-section" id="shortcuts">
+      <h2 class="section-title"><span class="s-icon">⚡</span>ショートカット</h2>
+
+      <p>以下のキーワードを送ると、AIを介さずに即座に操作一覧が返ってきます。</p>
+
+      <table class="example-table">
+        <thead>
+          <tr><th>キーワード</th><th>動作</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="msg">操作一覧</td>
+            <td>使い方の一覧を即返答</td>
+          </tr>
+          <tr>
+            <td class="msg">help</td>
+            <td>使い方の一覧を即返答</td>
+          </tr>
+          <tr>
+            <td class="msg">ヘルプ</td>
+            <td>使い方の一覧を即返答</td>
+          </tr>
+          <tr>
+            <td class="msg">?（または ？）</td>
+            <td>使い方の一覧を即返答</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="chat-demo">
+        <div class="chat-row user">
+          <div class="avatar user-av">👩</div>
+          <div class="bubble">操作一覧</div>
+        </div>
+        <div class="chat-row bot">
+          <div class="avatar bot">K</div>
+          <div class="bubble">操作一覧
+
+授乳: 「母乳」「ミルク 120ml」「搾母乳 80ml」
+おむつ: 「うんち」「おしっこ」「両方」
+睡眠: 「寝た」「起きた」「寝た〜起きた 7時から8時」
+体温: 「熱 37.2」
+確認: 「今日のまとめ」「前回の授乳は？」
+修正: 「さっきのなし」「150に直して」</div>
+        </div>
+      </div>
+    </section>
+    <!-- /section: shortcuts -->
+
+    <!-- ===== DASHBOARD ===== -->
+    <!-- section: dashboard -->
+    <section class="doc-section" id="dashboard">
+      <h2 class="section-title"><span class="s-icon">📈</span>ダッシュボード</h2>
+
+      <p>ブラウザでダッシュボードにアクセスすると、グラフや表で記録を視覚的に確認できます。</p>
+
+      <p>
+        URL:
+        <span class="url-chip">🔗 https://koto-log.onrender.com/dashboard</span>
+      </p>
+
+      <div class="note">ダッシュボードトークンが設定されている場合は <code>?token=xxxxx</code> をURLに付加してアクセスしてください。管理者に確認してください。</div>
+
+      <h3 class="sub-title">今日タブ</h3>
+      <p>当日の記録をサマリーカードとタイムライン形式で表示します。</p>
+      <ul style="padding-left:20px;font-size:14px;margin-bottom:12px;">
+        <li style="margin-bottom:6px;"><strong>授乳カード</strong> — 今日の授乳回数と種別内訳</li>
+        <li style="margin-bottom:6px;"><strong>睡眠カード</strong> — 今日の睡眠合計時間と回数</li>
+        <li style="margin-bottom:6px;"><strong>おむつカード</strong> — 今日のうんち・おしっこ回数</li>
+        <li style="margin-bottom:6px;"><strong>タイムライン</strong> — 時系列で記録を一覧表示</li>
+      </ul>
+
+      <h3 class="sub-title">推移グラフタブ（7日 / 14日 / 30日）</h3>
+      <p>過去の期間を選んで、授乳・睡眠・おむつの推移をグラフで確認できます。期間はボタンで切り替え可能です。</p>
+    </section>
+    <!-- /section: dashboard -->
+
+    <!-- ===== NOTIFICATIONS ===== -->
+    <!-- section: notifications -->
+    <section class="doc-section" id="notifications">
+      <h2 class="section-title"><span class="s-icon">🔔</span>自動プッシュ通知</h2>
+
+      <p>設定が完了すると、毎日自動でLINEにメッセージが届きます。</p>
+
+      <h3 class="sub-title">毎朝 7:00 — 出産カウントダウン</h3>
+      <p>出産予定日までの残り日数と、AIが生成した一言メッセージが届きます。出産予定日の設定が必要です。</p>
+
+      <div class="chat-demo">
+        <div class="chat-row bot">
+          <div class="avatar bot">K</div>
+          <div class="bubble">おはようございます ☀️
+出産予定日まであと <strong>85日</strong> です。
+
+今日も赤ちゃんのこと、楽しみにしていますよ。体を大切にしてくださいね。</div>
+        </div>
+      </div>
+
+      <h3 class="sub-title">毎晩 21:00 — 日次サマリー</h3>
+      <p>その日の育児記録の集計結果が届きます。記録がない日はスキップされます。</p>
+
+      <div class="chat-demo">
+        <div class="chat-row bot">
+          <div class="avatar bot">K</div>
+          <div class="bubble">今日（6月27日）のまとめ 🌙
+
+🍼 授乳 6回（母乳4回・ミルク2回）
+😴 睡眠 3回（合計 5時間20分）
+👶 おむつ 5回（うんち2・おしっこ3）</div>
+        </div>
+      </div>
+
+      <div class="note">通知を受け取るには、出産予定日と LINE ユーザーID の両方が設定されている必要があります。管理画面（<code>/admin</code>）で確認してください。</div>
+    </section>
+    <!-- /section: notifications -->
+
+    <!-- ===== ADMIN ===== -->
+    <!-- section: admin -->
+    <section class="doc-section" id="admin">
+      <h2 class="section-title">
+        <span class="s-icon">⚙️</span>管理画面
+        <span class="badge badge-admin">管理者向け</span>
+      </h2>
+
+      <p>
+        URL:
+        <span class="url-chip">🔗 https://koto-log.onrender.com/admin</span>
+      </p>
+
+      <div class="note">管理画面はトークンで保護されています。URLに <code>?token=xxxxx</code> を付けてアクセスしてください。</div>
+
+      <h3 class="sub-title">設定</h3>
+      <ul style="padding-left:20px;font-size:14px;margin-bottom:12px;">
+        <li style="margin-bottom:6px;"><strong>出産予定日</strong> — 毎朝のカウントダウン通知に使用します</li>
+        <li style="margin-bottom:6px;"><strong>LINE ユーザーID</strong> — LINEに話しかけると自動で保存されます。手動設定も可能です</li>
+      </ul>
+
+      <h3 class="sub-title">記録の管理（AIなし手動CRUD）</h3>
+      <p>過去の記録を手動で追加・編集・削除できます。AIを介さない確実な修正用です。取りこぼした記録の追加や、誤抽出された記録の修正に使用します。</p>
+
+      <p>
+        URL:
+        <span class="url-chip">🔗 https://koto-log.onrender.com/admin/records</span>
+      </p>
+
+      <ul style="padding-left:20px;font-size:14px;margin-bottom:12px;">
+        <li style="margin-bottom:6px;"><strong>一覧表示</strong> — 期間・種別フィルタ付きで記録を一覧表示</li>
+        <li style="margin-bottom:6px;"><strong>追加</strong> — 種別・時刻・量などを直接入力して記録を追加</li>
+        <li style="margin-bottom:6px;"><strong>編集</strong> — 既存の記録を修正（時刻・量・種別など）</li>
+        <li style="margin-bottom:6px;"><strong>削除</strong> — 確認ステップを経て記録を削除</li>
+      </ul>
+
+      <h3 class="sub-title">テスト送信</h3>
+      <p>管理画面から「今すぐ送信」ボタンを押すと、朝のカウントダウンメッセージをその場でLINEに送信できます。通知の動作確認に使用してください。</p>
+
+      <h3 class="sub-title">LINEから設定する</h3>
+      <p>出産予定日はLINEのトーク画面からも設定できます。</p>
+
+      <div class="chat-demo">
+        <div class="chat-row user">
+          <div class="avatar user-av">👩</div>
+          <div class="bubble">due_date 2026-09-15</div>
+        </div>
+        <div class="chat-row bot">
+          <div class="avatar bot">K</div>
+          <div class="bubble">出産予定日を 2026年9月15日 に設定しました ✓</div>
+        </div>
+      </div>
+    </section>
+    <!-- /section: admin -->
+
+    <!-- ===== FAQ ===== -->
+    <!-- section: faq -->
+    <section class="doc-section" id="faq">
+      <h2 class="section-title"><span class="s-icon">❓</span>よくある質問</h2>
+
+      <h3 class="sub-title">Q. 記録が保存されているか不安です</h3>
+      <p>「今日のまとめ」または「前回の授乳は？」と送ると、直近の記録が返ってきます。記録が正しく保存されているか確認できます。</p>
+
+      <h3 class="sub-title">Q. 量を入力しなかったのですが大丈夫ですか？</h3>
+      <p>大丈夫です。量は任意項目です。「母乳」とだけ送っても授乳記録として保存されます。集計時は回数のみカウントされます。</p>
+
+      <h3 class="sub-title">Q. 返信が遅い・来ないことがあります</h3>
+      <p>koto-logはRenderの無料プランで動作しているため、アクセスが一定時間ない場合にサーバーがスリープします。最初のメッセージには数秒〜数十秒かかる場合があります。しばらく待ってから再送してください。</p>
+
+      <h3 class="sub-title">Q. 誤って記録してしまいました</h3>
+      <p>直前の記録であれば「さっきのなし」で削除できます。それより前の記録は管理画面（<code>/admin/records</code>）から削除してください。</p>
+
+      <h3 class="sub-title">Q. 複数人で使えますか？</h3>
+      <p>現在は1ユーザー（1つのLINEアカウント）への通知のみ対応しています。複数人対応は今後のロードマップに含まれています。</p>
+
+      <h3 class="sub-title">Q. プッシュ通知が届きません</h3>
+      <p>以下を確認してください：</p>
+      <ol style="padding-left:20px;font-size:14px;margin-top:8px;">
+        <li style="margin-bottom:6px;">管理画面で出産予定日が設定されているか</li>
+        <li style="margin-bottom:6px;">管理画面でLINEユーザーIDが設定されているか（LINEに話しかけると自動で保存されます）</li>
+        <li style="margin-bottom:6px;">管理画面のテスト送信でメッセージが届くか確認する</li>
+      </ol>
+    </section>
+    <!-- /section: faq -->
+
+    <!-- ===== CHANGELOG ===== -->
+    <!-- section: changelog -->
+    <section class="doc-section" id="changelog">
+      <h2 class="section-title"><span class="s-icon">📋</span>更新履歴</h2>
+
+      <div class="changelog-entry">
+        <div class="cl-version">P8 — 記録CRUD</div>
+        <div class="cl-date">2026-06</div>
+        <ul>
+          <li>管理画面から過去の記録を手動で追加・編集・削除できるようになりました</li>
+          <li>期間・種別フィルタ付きの記録一覧画面を追加</li>
+        </ul>
+      </div>
+
+      <div class="changelog-entry">
+        <div class="cl-version">P7 — 可観測性</div>
+        <div class="cl-date">2026-06</div>
+        <ul>
+          <li>トークン使用量の計測・ログ出力機能を追加（運用コスト把握のため）</li>
+        </ul>
+      </div>
+
+      <div class="changelog-entry">
+        <div class="cl-version">P6 — まとめ入力</div>
+        <div class="cl-date">2026-06</div>
+        <ul>
+          <li>複数の記録を1つのメッセージでまとめて送れるようになりました</li>
+        </ul>
+      </div>
+
+      <div class="changelog-entry">
+        <div class="cl-version">P5 — 自動プッシュ通知</div>
+        <div class="cl-date">2026-06</div>
+        <ul>
+          <li>毎朝7時の出産カウントダウン通知を追加</li>
+          <li>毎晩21時の日次サマリー通知を追加</li>
+          <li>管理画面（<code>/admin</code>）を追加</li>
+        </ul>
+      </div>
+
+      <div class="changelog-entry">
+        <div class="cl-version">P4 — ダッシュボード</div>
+        <div class="cl-date">2026-05</div>
+        <ul>
+          <li>ブラウザで記録を確認できるダッシュボードを追加</li>
+          <li>今日タブ（サマリーカード・タイムライン）</li>
+          <li>期間選択グラフ（7日 / 14日 / 30日）</li>
+        </ul>
+      </div>
+
+      <div class="changelog-entry">
+        <div class="cl-version">P1〜P3 — 基盤</div>
+        <div class="cl-date">2026-04〜05</div>
+        <ul>
+          <li>授乳・睡眠・おむつ・体温の記録機能</li>
+          <li>集計・前回確認・修正機能</li>
+          <li>LINEとの連携（Webhook・Reply API）</li>
+          <li>本番環境（Render + Turso + Claude Haiku）のリリース</li>
+        </ul>
+      </div>
+    </section>
+    <!-- /section: changelog -->
+
+  </main>
+</div>
+
+<script>
+  // === MOBILE SIDEBAR TOGGLE ===
+  const menuToggle = document.getElementById('menuToggle');
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('overlay');
+
+  function openSidebar() {
+    sidebar.classList.add('open');
+    overlay.classList.add('open');
+  }
+  function closeSidebar() {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('open');
+  }
+  menuToggle.addEventListener('click', () => {
+    sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+  });
+  overlay.addEventListener('click', closeSidebar);
+  sidebar.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', () => { if (window.innerWidth < 768) closeSidebar(); });
+  });
+
+  // === ACTIVE NAV LINK (scroll spy) ===
+  const sections = document.querySelectorAll('.doc-section');
+  const navLinks = document.querySelectorAll('.nav-link');
+
+  function updateActive() {
+    let current = '';
+    sections.forEach(sec => {
+      const top = sec.getBoundingClientRect().top;
+      if (top <= 100) current = sec.id;
+    });
+    navLinks.forEach(link => {
+      link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+    });
+  }
+  window.addEventListener('scroll', updateActive, { passive: true });
+  updateActive();
+</script>
+
+</body>
+</html>
