@@ -509,13 +509,14 @@
           <div class="step-body">
             <strong>LINE で友だち追加する</strong>
             管理者から共有されたQRコードまたはリンクからkoto-logを友だち追加します。
+            <div style="margin-top:10px;width:120px;height:120px;border:2px dashed var(--border-color);display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--text-muted);font-size:12px;">QRコード枠</div>
           </div>
         </li>
         <li>
           <div class="step-num">2</div>
           <div class="step-body">
             <strong>出産予定日（または出生日）を設定する</strong>
-            LINEに <code>due_date 2026-09-15</code> と送信するか、管理画面（<code>/admin</code>）から設定します。<br>
+            「予定日は2026年9月15日」のように自然な言葉で話しかけるか、<code>due_date 2026-09-15</code> と送信して設定します。管理画面（<code>/admin</code>）からも設定できます。<br>
             設定すると毎朝のカウントダウン通知が届くようになります。
           </div>
         </li>
@@ -701,6 +702,27 @@
         <div class="chat-row bot">
           <div class="avatar bot">K</div>
           <div class="bubble">睡眠（10:00〜11:00・60分）記録しました ✓</div>
+        </div>
+      </div>
+
+      <h3 class="sub-title">リアルタイムでの記録（ペア運用）</h3>
+      <p>寝たとき・起きたときにそれぞれ送ると、睡眠時間を自動で計算します。</p>
+      <div class="chat-demo">
+        <div class="chat-row user">
+          <div class="avatar user-av">👩</div>
+          <div class="bubble">寝た</div>
+        </div>
+        <div class="chat-row bot">
+          <div class="avatar bot">K</div>
+          <div class="bubble">睡眠開始（14:30）記録しました ✓</div>
+        </div>
+        <div class="chat-row user" style="margin-top:10px;">
+          <div class="avatar user-av">👩</div>
+          <div class="bubble">起きた</div>
+        </div>
+        <div class="chat-row bot">
+          <div class="avatar bot">K</div>
+          <div class="bubble">睡眠終了（15:15・45分）記録しました ✓</div>
         </div>
       </div>
     </section>
@@ -1198,10 +1220,21 @@
 
   function updateActive() {
     let current = '';
-    sections.forEach(sec => {
-      const top = sec.getBoundingClientRect().top;
-      if (top <= 100) current = sec.id;
-    });
+    const isAtBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 50;
+
+    if (isAtBottom && sections.length > 0) {
+      current = sections[sections.length - 1].id;
+    } else {
+      sections.forEach(sec => {
+        const top = sec.getBoundingClientRect().top;
+        if (top <= 120) current = sec.id;
+      });
+    }
+
+    if (!current && sections.length > 0) {
+      current = sections[0].id;
+    }
+
     navLinks.forEach(link => {
       link.classList.toggle('active', link.getAttribute('href') === '#' + current);
     });
