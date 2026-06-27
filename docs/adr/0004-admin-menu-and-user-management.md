@@ -48,6 +48,10 @@
 5. **Push の fan-out**: 定期 Push（朝7時・夜21時）は `notify_enabled=1` の全ユーザーへ
    送る。`users` が空の場合は移行期フォールバックとして `settings.line_user_id` を使う。
 6. ニックネームは将来 Push 本文等で活用可能（本 ADR のスコープは登録・管理まで）。
+7. **複数子との整合**（[ADR-0005](0005-multi-child-strategy.md)）: 当面は案B
+   （子＝インスタンスごとに別 DB）のため `users` はインスタンス単位で独立してよい。
+   ただし案A（1アプリ複数チャネル）移行に備え、`users` は将来 `channel_id`
+   （or destination）列を足して (channel, user) 単位へ拡張できる前提で設計する。
 
 ## 理由
 
