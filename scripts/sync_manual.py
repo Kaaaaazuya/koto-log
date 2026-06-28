@@ -71,14 +71,15 @@ def main(diff_path: str, manual_path: str) -> None:
 
     updated = response.content[0].text.strip()
 
-    # Markdown フェンスが混入していた場合に除去
-    if updated.startswith("```"):
-        lines = updated.splitlines()
-        end = -1 if lines[-1].strip() == "```" else len(lines)
-        updated = "\n".join(lines[1:end])
-
-    if not updated.lstrip().startswith("<!DOCTYPE html>"):
-        print("ERROR: レスポンスが有効な HTML ではありません。中止します。")
+    # Markdown フェンスや前置き文が混入している場合に <!DOCTYPE html> の位置から切り出す
+    # （大文字小文字を区別しない・前置きテキストにも対応）
+    doctype_start = updated.lower().find("<!doctype html>")
+    if doctype_start != -1:
+        updated = updated[doctype_start:]
+        if updated.endswith("```"):
+            updated = updated[:-3].strip()
+    else:
+        print("ERROR: レスポンスに <!DOCTYPE html> が含まれていません。中止します。")
         print(updated[:500])
         sys.exit(1)
 
