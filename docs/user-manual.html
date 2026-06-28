@@ -232,6 +232,8 @@
       border-bottom: 1px solid var(--border-color);
       color: var(--text-primary);
       vertical-align: top;
+      word-break: break-all;
+      overflow-wrap: break-word;
     }
     .example-table tr:last-child td { border-bottom: none; }
     .example-table tr:nth-child(even) td { background: #fdfaf7; }
@@ -1239,7 +1241,16 @@
       link.classList.toggle('active', link.getAttribute('href') === '#' + current);
     });
   }
-  window.addEventListener('scroll', updateActive, { passive: true });
+  let ticking = false;
+  window.addEventListener('scroll', () => {
+    if (!ticking) {
+      window.requestAnimationFrame(() => {
+        updateActive();
+        ticking = false;
+      });
+      ticking = true;
+    }
+  }, { passive: true });
   updateActive();
 </script>
 
