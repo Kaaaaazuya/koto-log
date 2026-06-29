@@ -63,31 +63,31 @@ class FakeLLMClient:
 def test_extract_returns_empty_for_query():
     """質問文には空リストが返る。"""
     llm = FakeLLMClient(_extract_resp([]))
-    result = extract_records("今日は何回飲んだ？", llm)
-    assert result == []
+    records, _ = extract_records("今日は何回飲んだ？", llm)
+    assert records == []
 
 
 def test_extract_returns_single_record():
     """1 件の授乳記録が正しく抽出される。"""
-    records = [{"type": "feeding", "sub_type": "ミルク", "amount": 120, "unit": "ml", "started_at": "9時"}]
-    llm = FakeLLMClient(_extract_resp(records))
-    result = extract_records("9時にミルク120ml", llm)
-    assert len(result) == 1
-    assert result[0]["type"] == "feeding"
-    assert result[0]["amount"] == 120
+    items = [{"type": "feeding", "sub_type": "ミルク", "amount": 120, "unit": "ml", "started_at": "9時"}]
+    llm = FakeLLMClient(_extract_resp(items))
+    records, _ = extract_records("9時にミルク120ml", llm)
+    assert len(records) == 1
+    assert records[0]["type"] == "feeding"
+    assert records[0]["amount"] == 120
 
 
 def test_extract_returns_multiple_records():
     """複数記録が全件抽出される。"""
-    records = [
+    items = [
         {"type": "feeding", "sub_type": "母乳", "started_at": "9時"},
         {"type": "diaper", "sub_type": "おしっこ", "started_at": "9時"},
         {"type": "sleep", "started_at": "10時", "ended_at": "11時"},
     ]
-    llm = FakeLLMClient(_extract_resp(records))
-    result = extract_records("9時に母乳とおしっこ交換、10時から11時まで睡眠", llm)
-    assert len(result) == 3
-    types = [r["type"] for r in result]
+    llm = FakeLLMClient(_extract_resp(items))
+    records, _ = extract_records("9時に母乳とおしっこ交換、10時から11時まで睡眠", llm)
+    assert len(records) == 3
+    types = [r["type"] for r in records]
     assert "feeding" in types
     assert "diaper" in types
     assert "sleep" in types
@@ -126,8 +126,9 @@ def test_extract_tags_operation_extract():
 def test_extract_returns_empty_when_no_tool_calls():
     """tool_calls なし（テキスト返答）の場合は空リストを返す。"""
     llm = FakeLLMClient(_no_tool_resp())
-    result = extract_records("テスト", llm)
-    assert result == []
+    records, child_name = extract_records("テスト", llm)
+    assert records == []
+    assert child_name is None
 
 
 # ---------------------------------------------------------------------------
@@ -191,3 +192,44 @@ def test_format_sleep_no_amount():
     assert "睡眠" in text
     assert "22:00" in text
     assert "記録した" in text
+
+
+# ---------------------------------------------------------------------------
+# P9.2: extract_records タプル戻り値 / child フィールド
+# ---------------------------------------------------------------------------
+
+
+def _extract_resp_with_child(records: list[dict], child_name: str) -> MagicMock:
+    """child フィールドを含む extract_records レスポンスを生成する。"""
+    tc = MagicMock()
+    tc.function.arguments = json.dumps({"records": records, "child": child_name}, ensure_ascii=False)
+    msg = MagicMock()
+    msg.tool_calls = [tc]
+    msg.content = None
+    resp = MagicMock()
+    resp.choices = [SimpleNamespace(message=msg)]
+    return resp
+
+
+def test_extract_returns_tuple():
+    """extract_records は (records, child_name) のタプルを返す（P9.2）。"""
+    llm = FakeLLMClient(_extract_resp([]))
+    result = extract_records("テスト", llm)
+    assert isinstance(result, tuple) and len(result) == 2
+
+
+def test_extract_child_name_in_response():
+    """child フィールドが存在する場合 child_name に値が返る。"""
+    records = [{"type": "feeding", "started_at": "9時"}]
+    llm = FakeLLMClient(_extract_resp_with_child(records, "たろう"))
+    result_records, child_name = extract_records("たろうに授乳した", llm)
+    assert child_name == "たろう"
+    assert len(result_records) == 1
+
+
+def test_extract_child_name_none_when_absent():
+    """child フィールドがない場合 child_name は None。"""
+    records = [{"type": "feeding", "started_at": "9時"}]
+    llm = FakeLLMClient(_extract_resp(records))
+    result_records, child_name = extract_records("授乳した", llm)
+    assert child_name is None

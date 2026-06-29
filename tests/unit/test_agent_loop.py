@@ -1,7 +1,7 @@
 """agent/loop.py の単体テスト。
 
 FakeLLMClient でレスポンスをスクリプト化し、ループロジックを検証する。
-実際の LLM・DB・ネットワークは一切使わない。
+DB・ToolExecutor・extract_records は全てパッチして単体テストに集中する。
 """
 
 from __future__ import annotations
@@ -60,13 +60,6 @@ class FakeLLMClient:
         return self._responses.pop(0)
 
 
-@pytest.fixture(autouse=True)
-def no_extraction():
-    """抽出フェーズをスキップしてツール使用ループのテストに集中する。"""
-    with patch("kotolog.agent.loop.extract_records", return_value=[]):
-        yield
-
-
 class FakeExecutor:
     """ツール呼び出しを記録し、固定の結果を返す偽エグゼキューター。"""
 
@@ -79,15 +72,37 @@ class FakeExecutor:
         return self._result
 
 
+@pytest.fixture(autouse=True)
+def _no_extraction():
+    """抽出フェーズをスキップしてツール使用ループのテストに集中する。"""
+    with patch("kotolog.agent.loop.extract_records", return_value=([], None)):
+        yield
+
+
+@pytest.fixture()
+def fake_executor():
+    """FakeExecutor を ToolExecutor の代わりに inject するフィクスチャ。"""
+    fe = FakeExecutor()
+    with patch("kotolog.agent.loop.crud.resolve_child_id", return_value=1):
+        with patch("kotolog.agent.loop.ToolExecutor", return_value=fe):
+            yield fe
+
+
+@pytest.fixture()
+def mock_conn():
+    """DB 接続なしの mock conn。ToolExecutor をパッチする前提で使う。"""
+    return MagicMock()
+
+
 # ---------------------------------------------------------------------------
 # テスト
 # ---------------------------------------------------------------------------
 
 
-def test_direct_text_no_tool_call():
+def test_direct_text_no_tool_call(mock_conn, fake_executor):
     """ツール呼び出しなしで即テキスト返答するケース。"""
     llm = FakeLLMClient([_text_resp("おむつを記録した")])
-    agent = Agent(client=llm, executor=FakeExecutor())
+    agent = Agent(client=llm, conn=mock_conn)
 
     result = agent.handle("うんち")
 
@@ -95,7 +110,7 @@ def test_direct_text_no_tool_call():
     assert len(llm.calls) == 1  # LLM は1回だけ呼ばれる
 
 
-def test_single_tool_call_then_response():
+def test_single_tool_call_then_response(mock_conn):
     """ツールを1回呼び出し、その後テキストで返答するケース。"""
     executor = FakeExecutor(result={"ok": True, "id": 42})
     llm = FakeLLMClient(
@@ -104,9 +119,10 @@ def test_single_tool_call_then_response():
             _text_resp("おむつ（うんち）を記録した"),
         ]
     )
-    agent = Agent(client=llm, executor=executor)
-
-    result = agent.handle("うんち")
+    with patch("kotolog.agent.loop.crud.resolve_child_id", return_value=1):
+        with patch("kotolog.agent.loop.ToolExecutor", return_value=executor):
+            agent = Agent(client=llm, conn=mock_conn)
+            result = agent.handle("うんち")
 
     assert result == "おむつ（うんち）を記録した"
     assert len(executor.executed) == 1
@@ -114,7 +130,7 @@ def test_single_tool_call_then_response():
     assert len(llm.calls) == 2  # ツール結果を受け取ってもう一度 LLM を呼ぶ
 
 
-def test_tool_result_is_passed_back_to_llm():
+def test_tool_result_is_passed_back_to_llm(mock_conn):
     """ツール実行結果が次の LLM 呼び出しのメッセージに含まれることを確認。"""
     executor = FakeExecutor(result={"ok": True, "record_id": 7})
     llm = FakeLLMClient(
@@ -123,8 +139,10 @@ def test_tool_result_is_passed_back_to_llm():
             _text_resp("母乳を記録した"),
         ]
     )
-    agent = Agent(client=llm, executor=executor)
-    agent.handle("母乳")
+    with patch("kotolog.agent.loop.crud.resolve_child_id", return_value=1):
+        with patch("kotolog.agent.loop.ToolExecutor", return_value=executor):
+            agent = Agent(client=llm, conn=mock_conn)
+            agent.handle("母乳")
 
     # 2回目の LLM 呼び出しに tool ロールのメッセージが含まれること
     second_call_messages = llm.calls[1]
@@ -134,7 +152,7 @@ def test_tool_result_is_passed_back_to_llm():
     assert "record_id" in tool_msgs[0]["content"]
 
 
-def test_max_iters_fallback():
+def test_max_iters_fallback(mock_conn, fake_executor):
     """max_iters を超えたらフォールバックメッセージを返す。"""
     llm = FakeLLMClient(
         [
@@ -143,7 +161,7 @@ def test_max_iters_fallback():
             _tool_resp("save_record", {"type": "diaper", "started_at": "now"}),
         ]
     )
-    agent = Agent(client=llm, executor=FakeExecutor(), max_iters=3)
+    agent = Agent(client=llm, conn=mock_conn, max_iters=3)
 
     result = agent.handle("うんち")
 
@@ -151,7 +169,7 @@ def test_max_iters_fallback():
     assert len(llm.calls) == 3  # max_iters 分だけ呼ばれる
 
 
-def test_tool_error_is_swallowed_and_loop_continues():
+def test_tool_error_is_swallowed_and_loop_continues(mock_conn):
     """ツール実行が例外を投げてもループが落ちず、エラーを LLM に返す。"""
 
     class BrokenExecutor:
@@ -164,15 +182,16 @@ def test_tool_error_is_swallowed_and_loop_continues():
             _text_resp("エラーが発生した"),
         ]
     )
-    agent = Agent(client=llm, executor=BrokenExecutor())
-
-    result = agent.handle("母乳")
+    with patch("kotolog.agent.loop.crud.resolve_child_id", return_value=1):
+        with patch("kotolog.agent.loop.ToolExecutor", return_value=BrokenExecutor()):
+            agent = Agent(client=llm, conn=mock_conn)
+            result = agent.handle("母乳")
 
     # 例外で落ちず、エラーを受け取った LLM の最終返答が得られること
     assert result == "エラーが発生した"
 
 
-def test_fallback_json_parse_in_content():
+def test_fallback_json_parse_in_content(mock_conn):
     """tool_calls がなく本文に JSON が混入した場合のフォールバック解析。"""
     fallback_content = '{"name": "save_record", "arguments": {"type": "diaper", "started_at": "now"}}'
 
@@ -185,37 +204,40 @@ def test_fallback_json_parse_in_content():
 
     executor = FakeExecutor()
     llm = FakeLLMClient([fallback_resp, _text_resp("記録した")])
-    agent = Agent(client=llm, executor=executor)
-
-    result = agent.handle("うんち")
+    with patch("kotolog.agent.loop.crud.resolve_child_id", return_value=1):
+        with patch("kotolog.agent.loop.ToolExecutor", return_value=executor):
+            agent = Agent(client=llm, conn=mock_conn)
+            result = agent.handle("うんち")
 
     assert result == "記録した"
     assert executor.executed[0][0] == "save_record"
 
 
-def test_empty_content_returns_empty_string():
+def test_empty_content_returns_empty_string(mock_conn, fake_executor):
     """LLM が空レスポンスを返した場合、空文字を返す。"""
     llm = FakeLLMClient([_text_resp("")])
-    agent = Agent(client=llm, executor=FakeExecutor())
+    agent = Agent(client=llm, conn=mock_conn)
 
     result = agent.handle("テスト")
 
     assert result == ""
 
 
-def test_loop_calls_tagged_with_loop_operation():
+def test_loop_calls_tagged_with_loop_operation(mock_conn):
     """ツール使用ループの complete は operation="loop" で計測される（ADR-0002）。"""
+    executor = FakeExecutor()
     llm = FakeLLMClient(
         [_tool_resp("save_record", {"type": "diaper", "started_at": "now"}), _text_resp("記録した")]
     )
-    agent = Agent(client=llm, executor=FakeExecutor())
-
-    agent.handle("うんち")
+    with patch("kotolog.agent.loop.crud.resolve_child_id", return_value=1):
+        with patch("kotolog.agent.loop.ToolExecutor", return_value=executor):
+            agent = Agent(client=llm, conn=mock_conn)
+            agent.handle("うんち")
 
     assert llm.operations == ["loop", "loop"]
 
 
-def test_handle_sets_trace_id():
+def test_handle_sets_trace_id(mock_conn):
     """handle() の冒頭でトレース ID が発行され、呼び出し中は参照できる。"""
     from kotolog.obs.usage import current_trace_id
 
@@ -229,8 +251,9 @@ def test_handle_sets_trace_id():
     llm = FakeLLMClient(
         [_tool_resp("save_record", {"type": "diaper", "started_at": "now"}), _text_resp("ok")]
     )
-    agent = Agent(client=llm, executor=TraceCapturingExecutor())
-
-    agent.handle("うんち")
+    with patch("kotolog.agent.loop.crud.resolve_child_id", return_value=1):
+        with patch("kotolog.agent.loop.ToolExecutor", return_value=TraceCapturingExecutor()):
+            agent = Agent(client=llm, conn=mock_conn)
+            agent.handle("うんち")
 
     assert seen["trace_id"]  # 非空のトレース ID が設定されている

@@ -44,7 +44,11 @@ _EXTRACT_TOOL = {
                         },
                         "required": ["type", "started_at"],
                     },
-                }
+                },
+                "child": {
+                    "type": "string",
+                    "description": "記録対象の子の名前（複数児がいる場合にユーザーが明示した場合のみ設定）",
+                },
             },
             "required": ["records"],
         },
@@ -60,8 +64,13 @@ _EXTRACT_SYSTEM = (
 _TYPE_LABELS = {"feeding": "授乳", "sleep": "睡眠", "diaper": "おむつ", "temp": "体温"}
 
 
-def extract_records(text: str, llm_client) -> list[dict]:
-    """テキストから育児記録リストを抽出する。記録でない場合は空リストを返す。"""
+def extract_records(text: str, llm_client) -> tuple[list[dict], str | None]:
+    """テキストから育児記録リストを抽出する。
+
+    Returns:
+        (records, child_name): records は抽出された記録リスト（記録でない場合は空リスト）、
+        child_name はユーザーが明示した対象児名（未指定なら None）。
+    """
     resp = llm_client.complete(
         messages=[
             {"role": "system", "content": _EXTRACT_SYSTEM},
@@ -74,16 +83,21 @@ def extract_records(text: str, llm_client) -> list[dict]:
     message = resp.choices[0].message
     tool_calls = getattr(message, "tool_calls", None)
     if not tool_calls:
-        return []
+        return [], None
     try:
         args = json.loads(tool_calls[0].function.arguments)
     except (json.JSONDecodeError, AttributeError):
-        return []
-    return args.get("records") or []
+        return [], None
+    records = args.get("records") or []
+    child_name = args.get("child") or None
+    return records, child_name
 
 
-def format_confirmation(saved: list[dict]) -> str:
-    """保存済み記録リストをテンプレートで確認文に変換する。"""
+def format_confirmation(saved: list[dict], child_name: str | None = None) -> str:
+    """保存済み記録リストをテンプレートで確認文に変換する。
+
+    child_name が指定された場合は先頭に「【child_name】\n」を付与する。
+    """
     lines = []
     for r in saved:
         label = _TYPE_LABELS.get(r.get("type", ""), r.get("type", ""))
@@ -93,4 +107,7 @@ def format_confirmation(saved: list[dict]) -> str:
         sub = f"({r['sub_type']})" if r.get("sub_type") else ""
         amount = f" {int(r['amount'])}{r.get('unit') or 'ml'}" if r.get("amount") else ""
         lines.append(f"{label}{sub}{amount}（{time}）記録した")
-    return "\n".join(lines)
+    body = "\n".join(lines)
+    if child_name:
+        return f"【{child_name}】\n{body}"
+    return body

@@ -108,21 +108,18 @@ async def _handle_text_event(event: dict) -> None:
     try:
         event_id = event.get("webhookEventId", event.get("message", {}).get("id", ""))
         agent = _get_agent()
-        conn = agent.executor.conn
+        conn = agent.conn
 
         if crud.is_processed(conn, event_id):
             return
         crud.mark_processed(conn, event_id)
 
-        user_id = event.get("source", {}).get("userId", "")
-        if user_id:
-            crud.set_setting(conn, "line_user_id", user_id)
-
+        user_id = event.get("source", {}).get("userId", "") or None
         text = event["message"]["text"]
         if text.strip() in _HELP_COMMANDS:
             reply_text = _HELP_TEXT
         else:
-            reply_text = await asyncio.to_thread(agent.handle, text)
+            reply_text = await asyncio.to_thread(agent.handle, text, user_id)
 
         reply_token = event.get("replyToken", "")
         access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")

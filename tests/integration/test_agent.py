@@ -15,11 +15,11 @@ from kotolog.agent.loop import Agent
 
 @pytest.fixture(autouse=True)
 def _no_extraction():
-    with patch("kotolog.agent.loop.extract_records", return_value=[]):
+    with patch("kotolog.agent.loop.extract_records", return_value=([], None)):
         yield
 
 
-def test_save_flow_returns_confirmation_and_writes_db(executor, conn, fake_llm, resp, tc):
+def test_save_flow_returns_confirmation_and_writes_db(child_id, conn, fake_llm, resp, tc, now):
     llm = fake_llm(
         [
             resp(
@@ -33,7 +33,7 @@ def test_save_flow_returns_confirmation_and_writes_db(executor, conn, fake_llm, 
             resp(content="ミルク120mlを3時に記録しました。"),
         ]
     )
-    agent = Agent(client=llm, executor=executor)
+    agent = Agent(client=llm, conn=conn, _now=lambda: now)
 
     reply = agent.handle("3時にミルク120ml飲んだ")
 
@@ -44,7 +44,7 @@ def test_save_flow_returns_confirmation_and_writes_db(executor, conn, fake_llm, 
     assert rows[0]["started_at"] == "2026-06-18T03:00:00+09:00"
 
 
-def test_text_embedded_tool_call_is_recovered(executor, conn, fake_llm, resp):
+def test_text_embedded_tool_call_is_recovered(child_id, conn, fake_llm, resp, now):
     # tool_calls が空でも本文中の JSON ツール呼び出しを拾う（7Bの実失敗モード）
     content = 'leton\n{"name": "save_record", "arguments": {"type": "diaper", "started_at": "さっき"}}'
     llm = fake_llm(
@@ -53,7 +53,7 @@ def test_text_embedded_tool_call_is_recovered(executor, conn, fake_llm, resp):
             resp(content="おむつを記録しました。"),
         ]
     )
-    agent = Agent(client=llm, executor=executor)
+    agent = Agent(client=llm, conn=conn, _now=lambda: now)
 
     reply = agent.handle("さっきおむつ替えた")
 
@@ -62,9 +62,9 @@ def test_text_embedded_tool_call_is_recovered(executor, conn, fake_llm, resp):
     assert len(rows) == 1
 
 
-def test_clarification_returns_text_without_tool(executor, conn, fake_llm, resp):
+def test_clarification_returns_text_without_tool(child_id, conn, fake_llm, resp, now):
     llm = fake_llm([resp(content="ミルクの量はどれくらいですか？", tool_calls=None)])
-    agent = Agent(client=llm, executor=executor)
+    agent = Agent(client=llm, conn=conn, _now=lambda: now)
 
     reply = agent.handle("さっきミルクあげた")
 
@@ -72,7 +72,7 @@ def test_clarification_returns_text_without_tool(executor, conn, fake_llm, resp)
     assert conn.execute("SELECT COUNT(*) AS n FROM records").fetchone()["n"] == 0
 
 
-def test_query_flow_feeds_result_back(executor, fake_llm, resp, tc):
+def test_query_flow_feeds_result_back(child_id, conn, fake_llm, resp, tc, now, executor):
     executor.execute("save_record", {"type": "feeding", "amount": 100, "unit": "ml", "started_at": "3時"})
     executor.execute("save_record", {"type": "feeding", "amount": 120, "unit": "ml", "started_at": "7時"})
     llm = fake_llm(
@@ -81,7 +81,7 @@ def test_query_flow_feeds_result_back(executor, fake_llm, resp, tc):
             resp(content="今日は2回、合計220mlです。"),
         ]
     )
-    agent = Agent(client=llm, executor=executor)
+    agent = Agent(client=llm, conn=conn, _now=lambda: now)
 
     reply = agent.handle("今日何回ミルク飲んだ？")
 
@@ -92,26 +92,26 @@ def test_query_flow_feeds_result_back(executor, fake_llm, resp, tc):
     assert tool_msgs and '"count": 2' in tool_msgs[0]["content"]
 
 
-def test_unknown_tool_is_handled_not_raised(executor, fake_llm, resp, tc):
+def test_unknown_tool_is_handled_not_raised(child_id, conn, fake_llm, resp, tc, now):
     llm = fake_llm(
         [
             resp(tool_calls=[tc("nope", {})]),
             resp(content="すみません、その操作はできません。"),
         ]
     )
-    agent = Agent(client=llm, executor=executor)
+    agent = Agent(client=llm, conn=conn, _now=lambda: now)
 
     reply = agent.handle("何か変なこと")
 
     assert reply == "すみません、その操作はできません。"
 
 
-def test_loop_gives_up_after_max_iters(executor, fake_llm, resp, tc):
+def test_loop_gives_up_after_max_iters(child_id, conn, fake_llm, resp, tc, now):
     # 毎回ツールを呼び続けるモデル → 上限で打ち切り、例外を出さない
     llm = fake_llm(
         [resp(tool_calls=[tc("save_record", {"type": "feeding", "started_at": "今"})]) for _ in range(10)]
     )
-    agent = Agent(client=llm, executor=executor, max_iters=3)
+    agent = Agent(client=llm, conn=conn, max_iters=3, _now=lambda: now)
 
     reply = agent.handle("ループ")
 

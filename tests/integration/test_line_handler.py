@@ -16,7 +16,6 @@ from fastapi.testclient import TestClient
 
 from kotolog.agent.loop import Agent
 from kotolog.db import crud
-from kotolog.tools.executor import ToolExecutor
 from tests.conftest import NOW, FakeLLM, make_resp
 
 CHANNEL_SECRET = "test_secret"
@@ -71,9 +70,8 @@ def webhook_client(monkeypatch, conn, child_id):
     import kotolog.line.reply as reply_mod
     import kotolog.line.webhook as wh
 
-    executor = ToolExecutor(conn=conn, child_id=child_id, now=NOW)
     llm = FakeLLM([make_resp(content="記録しました。"), make_resp(content="記録しました。")])
-    agent = Agent(client=llm, executor=executor)
+    agent = Agent(client=llm, conn=conn, _now=lambda: NOW)
 
     sent: list[dict] = []
 

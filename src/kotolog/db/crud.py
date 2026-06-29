@@ -74,6 +74,44 @@ def set_default_child_id(conn: sqlite3.Connection, child_id: int) -> None:
     set_setting(conn, "default_child_id", str(child_id))
 
 
+def resolve_child_id(
+    conn: sqlite3.Connection,
+    *,
+    line_user_id: str | None = None,
+    child_name_hint: str | None = None,
+) -> int:
+    """リクエストごとに対象児 ID を解決する（ADR-0006 優先順位）。
+
+    名前明示 → users.current_child_id → default_child_id → 単一児 の順で解決する。
+    解決できない場合は RuntimeError。
+    """
+    if child_name_hint is not None:
+        row = conn.execute("SELECT id FROM children WHERE name_alias = ?", (child_name_hint,)).fetchone()
+        if row is not None:
+            return row["id"]
+
+    if line_user_id is not None:
+        row = conn.execute(
+            "SELECT current_child_id FROM users WHERE line_user_id = ?", (line_user_id,)
+        ).fetchone()
+        if row is not None and row["current_child_id"] is not None:
+            exists = conn.execute(
+                "SELECT 1 FROM children WHERE id = ?", (row["current_child_id"],)
+            ).fetchone()
+            if exists:
+                return row["current_child_id"]
+
+    did = get_default_child_id(conn)
+    if did is not None:
+        return did
+
+    children = list_children(conn)
+    if len(children) == 1:
+        return children[0]["id"]
+
+    raise RuntimeError("対象児を解決できませんでした。子を登録するか既定児を設定してください。")
+
+
 def get_or_create_default_child(conn: sqlite3.Connection, seed_name: str) -> int:
     """既定児 id を解決する。無ければ既存の先頭児を既定化、子が皆無なら seed 児を作成する。
 
