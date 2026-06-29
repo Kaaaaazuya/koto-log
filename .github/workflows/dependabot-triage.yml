@@ -1,0 +1,60 @@
+name: Dependabot triage
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  triage:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@d7d64e767fcbc838ed463c4ecf4a0fe09c7f7eca # v2.3.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # SemVer ラベルを付与（patch / minor / major で対応優先度を可視化）
+      - name: Label by semver
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const updateType = '${{ steps.meta.outputs.update-type }}';
+            const labelMap = {
+              'version-update:semver-patch': 'semver: patch',
+              'version-update:semver-minor': 'semver: minor',
+              'version-update:semver-major': 'semver: major',
+            };
+            const label = labelMap[updateType];
+            if (!label) return;
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: [label],
+            });
+
+      # patch 更新は CI 通過後に自動マージ（記事の「patch → CI通過で即座に対応」）
+      - name: Auto-merge patch updates
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch'
+        run: gh pr merge --auto --squash "${{ github.event.pull_request.html_url }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # major 更新はコメントで注意喚起（手動レビューが必要）
+      - name: Notify on major update
+        if: steps.meta.outputs.update-type == 'version-update:semver-major'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '⚠️ **メジャーバージョン更新です。**\n\n破壊的変更がある可能性があるため、差分・リリースノートを確認してからマージしてください。',
+            });
