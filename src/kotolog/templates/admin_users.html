@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ユーザー管理 – koto-log</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333; padding: 24px; }
+    h1 { font-size: 1.4rem; margin-bottom: 8px; color: #555; }
+    .back { font-size: .85rem; color: #06c755; text-decoration: none; margin-bottom: 24px; display: inline-block; }
+    .card { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #f0f0f0; font-size: .9rem; }
+    th { color: #888; font-weight: 500; font-size: .8rem; }
+    tr:last-child td { border-bottom: none; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: .75rem; }
+    .badge-on  { background: #e6f4ea; color: #2d7a3a; }
+    .badge-off { background: #f5f5f5; color: #999; }
+    .btn { display: inline-block; padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: .85rem; text-decoration: none; }
+    .btn-primary  { background: #06c755; color: #fff; }
+    .btn-danger   { background: #ff4444; color: #fff; }
+    .btn-secondary{ background: #eee; color: #555; }
+    .btn:hover { opacity: .85; }
+    .inline-form { display: inline; }
+    .notice { padding: 10px 14px; border-radius: 6px; font-size: .9rem; margin-bottom: 16px; }
+    .notice-ok  { background: #e6f4ea; color: #2d7a3a; }
+    .empty { color: #aaa; font-size: .9rem; padding: 20px 0; text-align: center; }
+    input[type="text"] { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: .9rem; width: 120px; }
+  </style>
+</head>
+<body>
+  <a class="back" href="/admin?token={{ token }}">← 管理トップ</a>
+  <h1 style="margin-bottom:24px;">ユーザー管理</h1>
+
+  {% if saved %}
+  <div class="notice notice-ok">保存しました。</div>
+  {% endif %}
+  {% if deleted %}
+  <div class="notice notice-ok">削除しました。</div>
+  {% endif %}
+
+  <div class="card">
+    {% if users %}
+    <table>
+      <thead>
+        <tr>
+          <th>LINE ユーザーID</th>
+          <th>ニックネーム</th>
+          <th>対象児</th>
+          <th>通知</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td style="font-size:.78rem;color:#888;">{{ u.line_user_id }}</td>
+          <td>
+            <form method="POST" action="/admin/users/{{ u.line_user_id }}/nickname?token={{ token }}" class="inline-form">
+              <input type="text" name="nickname" value="{{ u.nickname or '' }}" placeholder="未設定">
+              <button type="submit" class="btn btn-primary">保存</button>
+            </form>
+          </td>
+          <td>
+            <form method="POST" action="/admin/users/{{ u.line_user_id }}/child?token={{ token }}" class="inline-form">
+              <select name="child_id" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:.85rem;">
+                <option value="">—</option>
+                {% for c in children %}
+                <option value="{{ c.id }}" {% if u.current_child_id == c.id %}selected{% endif %}>{{ c.name_alias }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn btn-secondary">切替</button>
+            </form>
+          </td>
+          <td>
+            {% if u.notify_enabled %}
+              <span class="badge badge-on">ON</span>
+              <form method="POST" action="/admin/users/{{ u.line_user_id }}/notify?token={{ token }}" class="inline-form">
+                <input type="hidden" name="enabled" value="0">
+                <button type="submit" class="btn btn-secondary" style="font-size:.78rem;padding:4px 10px;">OFFにする</button>
+              </form>
+            {% else %}
+              <span class="badge badge-off">OFF</span>
+              <form method="POST" action="/admin/users/{{ u.line_user_id }}/notify?token={{ token }}" class="inline-form">
+                <input type="hidden" name="enabled" value="1">
+                <button type="submit" class="btn btn-primary" style="font-size:.78rem;padding:4px 10px;">ONにする</button>
+              </form>
+            {% endif %}
+          </td>
+          <td>
+            <form method="POST" action="/admin/users/{{ u.line_user_id }}/delete?token={{ token }}" class="inline-form"
+                  onsubmit="return confirm('{{ u.nickname or u.line_user_id }} を削除しますか？')">
+              <button type="submit" class="btn btn-danger">削除</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">ユーザーがいません。LINE からメッセージを送ると自動登録されます。</p>
+    {% endif %}
+  </div>
+</body>
+</html>

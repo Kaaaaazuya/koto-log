@@ -276,3 +276,52 @@ async def admin_record_delete(record_id: int, token: str | None = None):
     conn, _ = _get_conn_and_child()
     crud.delete_record(conn, record_id)
     return RedirectResponse(f"/admin/records?token={token or ''}&deleted=1", status_code=303)
+
+
+# --- T9.3.2: ユーザー管理 ----------------------------------------------------
+
+
+@router.get("/admin/users", response_class=HTMLResponse)
+async def admin_users(request: Request, token: str | None = None, saved: bool = False, deleted: bool = False):
+    _check_token(token)
+    conn = _get_conn()
+    users = [dict(u) for u in crud.list_users(conn)]
+    children = [dict(c) for c in crud.list_children(conn)]
+    return _templates.TemplateResponse(
+        request,
+        "admin_users.html",
+        {"users": users, "children": children, "token": token or "", "saved": saved, "deleted": deleted},
+    )
+
+
+@router.post("/admin/users/{line_user_id}/nickname")
+async def admin_user_nickname(line_user_id: str, token: str | None = None, nickname: str = Form("")):
+    _check_token(token)
+    conn = _get_conn()
+    crud.set_user_nickname(conn, line_user_id, nickname.strip() or None)
+    return RedirectResponse(f"/admin/users?token={token or ''}&saved=1", status_code=303)
+
+
+@router.post("/admin/users/{line_user_id}/notify")
+async def admin_user_notify(line_user_id: str, token: str | None = None, enabled: str = Form("1")):
+    _check_token(token)
+    conn = _get_conn()
+    crud.update_user_notify(conn, line_user_id, notify_enabled=(enabled == "1"))
+    return RedirectResponse(f"/admin/users?token={token or ''}&saved=1", status_code=303)
+
+
+@router.post("/admin/users/{line_user_id}/child")
+async def admin_user_child(line_user_id: str, token: str | None = None, child_id: str = Form("")):
+    _check_token(token)
+    conn = _get_conn()
+    if child_id.strip():
+        crud.set_user_current_child(conn, line_user_id, int(child_id))
+    return RedirectResponse(f"/admin/users?token={token or ''}&saved=1", status_code=303)
+
+
+@router.post("/admin/users/{line_user_id}/delete")
+async def admin_user_delete(line_user_id: str, token: str | None = None):
+    _check_token(token)
+    conn = _get_conn()
+    crud.delete_user(conn, line_user_id)
+    return RedirectResponse(f"/admin/users?token={token or ''}&deleted=1", status_code=303)

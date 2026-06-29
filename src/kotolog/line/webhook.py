@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -99,6 +100,24 @@ async def webhook(
     return {"ok": True}
 
 
+_SWITCH_RE = re.compile(r"^(.+?)に切り替え(?:て)?[。、]?$")
+
+
+def _try_switch_child(conn, user_id: str | None, text: str) -> str | None:
+    """「〇〇に切り替え[て]」コマンドを処理して返信文を返す。非該当なら None。"""
+    if not user_id:
+        return None
+    m = _SWITCH_RE.match(text.strip())
+    if not m:
+        return None
+    name = m.group(1)
+    row = conn.execute("SELECT id FROM children WHERE name_alias = ?", (name,)).fetchone()
+    if row is None:
+        return f"「{name}」という子は登録されていません。"
+    crud.set_user_current_child(conn, user_id, row["id"])
+    return f"対象児を「{name}」に切り替えました。"
+
+
 async def _handle_text_event(event: dict) -> None:
     """冪等チェック → Agent 処理 → Reply API。"""
     import traceback
@@ -115,9 +134,14 @@ async def _handle_text_event(event: dict) -> None:
         crud.mark_processed(conn, event_id)
 
         user_id = event.get("source", {}).get("userId", "") or None
+        if user_id:
+            crud.upsert_user(conn, user_id)
+
         text = event["message"]["text"]
         if text.strip() in _HELP_COMMANDS:
             reply_text = _HELP_TEXT
+        elif switch_reply := await asyncio.to_thread(_try_switch_child, conn, user_id, text):
+            reply_text = switch_reply
         else:
             reply_text = await asyncio.to_thread(agent.handle, text, user_id)
 

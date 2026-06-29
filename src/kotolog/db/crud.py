@@ -129,6 +129,73 @@ def get_or_create_default_child(conn: sqlite3.Connection, seed_name: str) -> int
     return create_child(conn, seed_name)
 
 
+# --- ユーザー管理（P9.3 / ADR-0006） ----------------------------------------
+
+
+def upsert_user(conn: sqlite3.Connection, line_user_id: str, nickname: str | None = None) -> None:
+    """LINE ユーザーを登録または更新する。
+
+    INSERT OR IGNORE で競合を原子的に回避。nickname=None は「変更しない」を意味する。
+    """
+    now = _now()
+    conn.execute(
+        "INSERT OR IGNORE INTO users (line_user_id, notify_enabled, created_at, updated_at)"
+        " VALUES (?, 1, ?, ?)",
+        (line_user_id, now, now),
+    )
+    if nickname is not None:
+        conn.execute(
+            "UPDATE users SET nickname = ?, updated_at = ? WHERE line_user_id = ?",
+            (nickname, now, line_user_id),
+        )
+    else:
+        conn.execute(
+            "UPDATE users SET updated_at = ? WHERE line_user_id = ?",
+            (now, line_user_id),
+        )
+    conn.commit()
+
+
+def set_user_nickname(conn: sqlite3.Connection, line_user_id: str, nickname: str | None) -> None:
+    """ニックネームを明示的に設定する（None でクリア）。管理画面から使用。"""
+    conn.execute(
+        "UPDATE users SET nickname = ?, updated_at = ? WHERE line_user_id = ?",
+        (nickname, _now(), line_user_id),
+    )
+    conn.commit()
+
+
+def list_users(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """全ユーザーを作成日時昇順で返す。"""
+    return conn.execute("SELECT * FROM users ORDER BY created_at ASC").fetchall()
+
+
+def get_notify_users(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """notify_enabled=True のユーザーを返す。"""
+    return conn.execute("SELECT * FROM users WHERE notify_enabled = 1 ORDER BY created_at ASC").fetchall()
+
+
+def update_user_notify(conn: sqlite3.Connection, line_user_id: str, notify_enabled: bool) -> None:
+    conn.execute(
+        "UPDATE users SET notify_enabled = ?, updated_at = ? WHERE line_user_id = ?",
+        (1 if notify_enabled else 0, _now(), line_user_id),
+    )
+    conn.commit()
+
+
+def delete_user(conn: sqlite3.Connection, line_user_id: str) -> None:
+    conn.execute("DELETE FROM users WHERE line_user_id = ?", (line_user_id,))
+    conn.commit()
+
+
+def set_user_current_child(conn: sqlite3.Connection, line_user_id: str, child_id: int) -> None:
+    conn.execute(
+        "UPDATE users SET current_child_id = ?, updated_at = ? WHERE line_user_id = ?",
+        (child_id, _now(), line_user_id),
+    )
+    conn.commit()
+
+
 def insert_record(
     conn: sqlite3.Connection,
     *,
