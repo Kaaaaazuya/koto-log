@@ -55,7 +55,7 @@ def main(diff_path: str, manual_path: str) -> None:
 
     client = anthropic.Anthropic()
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-haiku-4-5-20251001",  # Claude Haiku 4.5（2025-10-01 snapshot）
         max_tokens=8192,
         system=SYSTEM_PROMPT,
         messages=[
@@ -71,10 +71,15 @@ def main(diff_path: str, manual_path: str) -> None:
 
     updated = response.content[0].text.strip()
 
-    # Markdown フェンスや前置き文が混入している場合に <!DOCTYPE html> の位置から切り出す
-    # （大文字小文字を区別しない・前置きテキストにも対応）
-    doctype_start = updated.lower().find("<!doctype html>")
-    if doctype_start != -1:
+    # 前置き文・Markdown フェンス・末尾の説明文を除去して HTML 部分のみ切り出す
+    # （大文字小文字非依存・</html> を末尾の基準とする）
+    updated_lower = updated.lower()
+    doctype_start = updated_lower.find("<!doctype html>")
+    html_end = updated_lower.rfind("</html>")
+
+    if doctype_start != -1 and html_end != -1 and doctype_start < html_end:
+        updated = updated[doctype_start:html_end + 7]  # len("</html>") == 7
+    elif doctype_start != -1:
         updated = updated[doctype_start:]
         if updated.endswith("```"):
             updated = updated[:-3].strip()
