@@ -20,8 +20,9 @@ def _table_exists(conn, name: str) -> bool:
     return row is not None
 
 
-def test_fresh_db_applies_baseline():
+def test_fresh_db_applies_baseline(monkeypatch):
     """新規DBでは baseline が適用され、records/children と schema_migrations が作られる。"""
+    monkeypatch.setattr(mig, "MIGRATIONS", [])  # baseline 挙動を分離して検証
     conn = connect(":memory:")
     migrate(conn)
 
@@ -32,12 +33,13 @@ def test_fresh_db_applies_baseline():
     conn.close()
 
 
-def test_existing_db_stamps_baseline_without_rerun():
+def test_existing_db_stamps_baseline_without_rerun(monkeypatch):
     """既存DB（テーブルあり・schema_migrations なし）は baseline を再実行せずスタンプする。
 
     部分的に records だけ存在する状態で migrate すると、baseline がスタンプのみされ
     （= schema.sql は再実行されない）、settings 等が作られないことで検証する。
     """
+    monkeypatch.setattr(mig, "MIGRATIONS", [])  # baseline 挙動を分離して検証
     conn = connect(":memory:")
     conn.execute("CREATE TABLE records (id INTEGER PRIMARY KEY)")
     conn.commit()
@@ -50,8 +52,9 @@ def test_existing_db_stamps_baseline_without_rerun():
     conn.close()
 
 
-def test_migrate_is_idempotent():
+def test_migrate_is_idempotent(monkeypatch):
     """二重に migrate しても baseline は1回だけ記録される。"""
+    monkeypatch.setattr(mig, "MIGRATIONS", [])  # baseline 挙動を分離して検証
     conn = connect(":memory:")
     migrate(conn)
     migrate(conn)

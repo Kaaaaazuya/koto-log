@@ -35,6 +35,60 @@ def ensure_child(conn: sqlite3.Connection, name_alias: str) -> int:
     return cur.lastrowid
 
 
+# --- 複数子・既定児（P9.1 / ADR-0006） ------------------------------------
+
+
+def create_child(conn: sqlite3.Connection, name_alias: str, birthday: str | None = None) -> int:
+    """子を新規作成して id を返す。最初の子なら既定児に自動設定する。"""
+    cur = conn.execute(
+        "INSERT INTO children (name_alias, birthday) VALUES (?, ?)",
+        (name_alias, birthday),
+    )
+    conn.commit()
+    child_id = cur.lastrowid
+    if get_default_child_id(conn) is None:
+        set_default_child_id(conn, child_id)
+    return child_id
+
+
+def list_children(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """全ての子を birthday 昇順（NULL は末尾）、同一/NULL は id 昇順で返す。"""
+    return conn.execute("SELECT * FROM children ORDER BY (birthday IS NULL), birthday ASC, id ASC").fetchall()
+
+
+def get_default_child_id(conn: sqlite3.Connection) -> int | None:
+    """世帯の既定児 id（settings.default_child_id）。未設定・不正値なら None。"""
+    value = get_setting(conn, "default_child_id")
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def set_default_child_id(conn: sqlite3.Connection, child_id: int) -> None:
+    set_setting(conn, "default_child_id", str(child_id))
+
+
+def get_or_create_default_child(conn: sqlite3.Connection, seed_name: str) -> int:
+    """既定児 id を解決する。無ければ既存の先頭児を既定化、子が皆無なら seed 児を作成する。
+
+    起動時の結線で使う（KOTOLOG_DEFAULT_CHILD への実行時依存を撤廃）。冪等。
+    """
+    did = get_default_child_id(conn)
+    if did is not None:
+        row = conn.execute("SELECT id FROM children WHERE id = ?", (did,)).fetchone()
+        if row is not None:
+            return did
+    children = list_children(conn)
+    if children:
+        cid = children[0]["id"]
+        set_default_child_id(conn, cid)
+        return cid
+    return create_child(conn, seed_name)
+
+
 def insert_record(
     conn: sqlite3.Connection,
     *,

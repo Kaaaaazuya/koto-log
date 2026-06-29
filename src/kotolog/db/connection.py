@@ -69,7 +69,9 @@ def connect(db_url: str, auth_token: str | None = None) -> Any:
     if db_url.startswith("libsql://"):
         import libsql_experimental as libsql  # type: ignore[import]
 
-        return _LibsqlConn(libsql.connect(database=db_url, auth_token=auth_token or ""))
+        conn = _LibsqlConn(libsql.connect(database=db_url, auth_token=auth_token or ""))
+        conn.execute("PRAGMA foreign_keys = ON")
+        return conn
     # check_same_thread=False: webhook の BackgroundTask は別スレッドで動く(P2)
     conn = sqlite3.connect(db_url, check_same_thread=False)
     conn.row_factory = sqlite3.Row

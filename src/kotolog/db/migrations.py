@@ -25,9 +25,24 @@ JST = timezone(timedelta(hours=9))
 
 BASELINE_VERSION = 1
 
-# baseline より後（version >= 2）の前進マイグレーション。(version, SQL) の昇順。
-# P9.1 以降でここに追加する（例: 0002 users / default_child_id）。
-MIGRATIONS: list[tuple[int, str]] = []
+# baseline より後（version >= 2）の前進マイグレーション。version 昇順で適用される。
+# 各マイグレーションは冪等に書く（モジュール docstring の規約参照）。
+
+# 0002: users テーブル（P9.1 / ADR-0006）。current_child_id は会話の現在の対象児。
+_M0002_USERS = """
+CREATE TABLE IF NOT EXISTS users (
+    line_user_id     TEXT PRIMARY KEY,
+    nickname         TEXT,
+    notify_enabled   INTEGER NOT NULL DEFAULT 1,
+    current_child_id INTEGER REFERENCES children(id) ON DELETE SET NULL,
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT NOT NULL
+);
+"""
+
+MIGRATIONS: list[tuple[int, str]] = [
+    (2, _M0002_USERS),
+]
 
 # 既存DB判定に使うコアテーブル（どれかがあれば「既存DB」とみなす）
 _CORE_TABLES = ("records", "children")
