@@ -44,10 +44,11 @@ def create_child(conn: sqlite3.Connection, name_alias: str, birthday: str | None
         "INSERT INTO children (name_alias, birthday) VALUES (?, ?)",
         (name_alias, birthday),
     )
-    conn.commit()
     child_id = cur.lastrowid
     if get_default_child_id(conn) is None:
-        set_default_child_id(conn, child_id)
+        set_default_child_id(conn, child_id)  # 内部 commit で INSERT + settings を一括コミット
+    else:
+        conn.commit()
     return child_id
 
 

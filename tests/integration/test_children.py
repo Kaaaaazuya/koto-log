@@ -69,3 +69,26 @@ def test_get_or_create_default_child_uses_existing(conn):
     cid = crud.get_or_create_default_child(conn, "baby")
     assert cid == existing
     assert len(crud.list_children(conn)) == 1
+
+
+def test_user_current_child_on_delete_set_null(conn):
+    """children 削除時に users.current_child_id が ON DELETE SET NULL で NULL になる。
+
+    connection.py の PRAGMA foreign_keys = ON が有効であることを保証するリグレッションテスト。
+    """
+    child_id = crud.create_child(conn, "たろう")
+    conn.execute(
+        "INSERT INTO users (line_user_id, nickname, current_child_id, created_at, updated_at)"
+        " VALUES (?, ?, ?, ?, ?)",
+        ("U001", "テストユーザー", child_id, "2026-01-01T00:00:00", "2026-01-01T00:00:00"),
+    )
+    conn.commit()
+
+    row = conn.execute("SELECT current_child_id FROM users WHERE line_user_id = ?", ("U001",)).fetchone()
+    assert row["current_child_id"] == child_id
+
+    conn.execute("DELETE FROM children WHERE id = ?", (child_id,))
+    conn.commit()
+
+    row = conn.execute("SELECT current_child_id FROM users WHERE line_user_id = ?", ("U001",)).fetchone()
+    assert row["current_child_id"] is None
