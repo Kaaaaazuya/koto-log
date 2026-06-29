@@ -112,3 +112,14 @@ def test_duplicate_versions_raise(monkeypatch):
     with pytest.raises(ValueError):
         migrate(conn)
     conn.close()
+
+
+def test_version_not_above_baseline_raises(monkeypatch):
+    """BASELINE_VERSION 以下の version は ValueError（順序・管理の不整合防止）。"""
+    import pytest
+
+    monkeypatch.setattr(mig, "MIGRATIONS", [(1, "CREATE TABLE IF NOT EXISTS a (id INTEGER)")])
+    conn = connect(":memory:")
+    with pytest.raises(ValueError):
+        migrate(conn)
+    conn.close()

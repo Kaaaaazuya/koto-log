@@ -78,6 +78,11 @@ def migrate(conn) -> None:
     versions = [v for v, _ in MIGRATIONS]
     if len(versions) != len(set(versions)):
         raise ValueError(f"MIGRATIONS に重複した version があります: {sorted(versions)}")
+    if any(v <= BASELINE_VERSION for v in versions):
+        raise ValueError(
+            f"MIGRATIONS の version は BASELINE_VERSION ({BASELINE_VERSION}) より大きい必要があります: "
+            f"{sorted(versions)}"
+        )
 
     _ensure_migrations_table(conn)
     applied = _applied_versions(conn)
