@@ -25,4 +25,8 @@ jobs:
         run: uv run ruff check . && uv run ruff format --check .
 
       - name: Test with coverage
-        run: uv run pytest --cov --cov-report=term-missing -q
+        run: uv run pytest --cov --cov-report=term-missing --cov-report=json -q
+
+      - name: Coverage threshold (warn only)
+        run: uv run coverage report --fail-under=80
+        continue-on-error: true
