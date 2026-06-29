@@ -25,7 +25,8 @@ def test_full_conversation_persists_to_file_db(tmp_path, fake_llm, resp, tc):
 
     llm = fake_llm(
         [
-            # 1) 保存
+            # 1) 保存: extract_records プレパス（空 → メインループへ）→ save_record → 確認文
+            resp(tool_calls=[tc("extract_records", {"records": []})]),
             resp(
                 tool_calls=[
                     tc(
@@ -35,10 +36,12 @@ def test_full_conversation_persists_to_file_db(tmp_path, fake_llm, resp, tc):
                 ]
             ),
             resp(content="ミルク120mlを3時に記録しました。"),
-            # 2) 集計
+            # 2) 集計: extract_records プレパス（空）→ query_records → 集計結果
+            resp(tool_calls=[tc("extract_records", {"records": []})]),
             resp(tool_calls=[tc("query_records", {"type": "feeding", "period": "today"})]),
             resp(content="今日は1回、合計120mlです。"),
-            # 3) 修正
+            # 3) 修正: extract_records プレパス（空）→ update → 確認文
+            resp(tool_calls=[tc("extract_records", {"records": []})]),
             resp(
                 tool_calls=[
                     tc(
@@ -48,7 +51,8 @@ def test_full_conversation_persists_to_file_db(tmp_path, fake_llm, resp, tc):
                 ]
             ),
             resp(content="直近の記録を150mlに修正しました。"),
-            # 4) 取消
+            # 4) 取消: extract_records プレパス（空）→ delete → 確認文
+            resp(tool_calls=[tc("extract_records", {"records": []})]),
             resp(tool_calls=[tc("update_or_delete_record", {"target": "last", "action": "delete"})]),
             resp(content="直近の記録を取り消しました。"),
         ]
@@ -63,7 +67,7 @@ def test_full_conversation_persists_to_file_db(tmp_path, fake_llm, resp, tc):
     # 2) 集計 → tool結果(count=1)が2手目のLLM入力に渡る
     r2 = agent.handle("今日は何回飲んだ？")
     assert "120" in r2
-    query_step_msgs = llm.seen_messages[3]
+    query_step_msgs = llm.seen_messages[5]
     tool_msgs = [m for m in query_step_msgs if m.get("role") == "tool"]
     assert tool_msgs and '"count": 1' in tool_msgs[0]["content"]
 
@@ -97,6 +101,8 @@ def test_daily_summary_narrates_from_aggregates(tmp_path, fake_llm, resp, tc):
 
     llm = fake_llm(
         [
+            # extract_records プレパス（空 → メインループへ）
+            resp(tool_calls=[tc("extract_records", {"records": []})]),
             resp(tool_calls=[tc("query_records", {"period": "today"})]),
             resp(content="今日は授乳2回(220ml)、おむつ1回でした。"),
         ]
@@ -106,8 +112,8 @@ def test_daily_summary_narrates_from_aggregates(tmp_path, fake_llm, resp, tc):
     reply = agent.handle("今日のまとめは？")
 
     assert "授乳" in reply
-    # 集計を1回の query で取得し、by_type が2手目のLLM入力に渡っている
-    tool_msgs = [m for m in llm.seen_messages[1] if m.get("role") == "tool"]
+    # 集計を1回の query で取得し、by_type が3手目のLLM入力に渡っている（[0]=extract, [1]=loop1, [2]=loop2）
+    tool_msgs = [m for m in llm.seen_messages[2] if m.get("role") == "tool"]
     assert tool_msgs and '"by_type"' in tool_msgs[0]["content"]
     assert '"feeding"' in tool_msgs[0]["content"]
     conn.close()
