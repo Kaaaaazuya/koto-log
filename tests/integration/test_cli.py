@@ -14,3 +14,14 @@ def test_build_agent_wires_executor_to_db(cfg):
     assert result["ok"] is True
     rows = agent.executor.conn.execute("SELECT COUNT(*) AS n FROM records").fetchone()
     assert rows["n"] == 1
+
+
+def test_build_agent_resolves_default_child_from_db(cfg):
+    """既定児を DB から解決し、executor.child_id が既定児に一致する（KOTOLOG_DEFAULT_CHILD 撤廃）。"""
+    from kotolog.db import crud
+
+    agent = build_agent(cfg)
+    conn = agent.executor.conn
+    assert agent.executor.child_id == crud.get_default_child_id(conn)
+    # 子は1人だけ作成されている（重複しない）
+    assert len(crud.list_children(conn)) == 1

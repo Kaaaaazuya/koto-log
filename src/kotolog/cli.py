@@ -23,7 +23,7 @@ def build_agent(config=None) -> Agent:
     config = config or load_config()
     conn = connect(config.db_url, auth_token=config.turso_auth_token)
     crud.init_db(conn)
-    child_id = crud.ensure_child(conn, config.default_child)
+    child_id = crud.get_or_create_default_child(conn, config.default_child)
     executor = ToolExecutor(conn=conn, child_id=child_id, now=datetime.now(JST))
     client = LLMClient(config, sink=sink_from_config(config))
     return Agent(client=client, executor=executor)
