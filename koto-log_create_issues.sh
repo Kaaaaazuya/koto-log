@@ -12,6 +12,17 @@
 #
 set -euo pipefail
 
+# プリフライトチェック: gh CLI の存在と認証状態を先に確認する
+# （未インストール/未認証だとラベル作成の誤メッセージが大量に出た後に突然失敗するため）
+if ! command -v gh &>/dev/null; then
+  echo "エラー: gh CLI がインストールされていません。https://cli.github.com/ を参照してインストールしてください。" >&2
+  exit 1
+fi
+if ! gh auth status &>/dev/null; then
+  echo "エラー: gh CLI が認証されていません。'gh auth login' を実行してください。" >&2
+  exit 1
+fi
+
 REPO="${REPO:-}"
 REPO_ARG=()
 if [[ -n "${REPO}" ]]; then
