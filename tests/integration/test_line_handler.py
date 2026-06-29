@@ -16,7 +16,6 @@ from fastapi.testclient import TestClient
 
 from kotolog.agent.loop import Agent
 from kotolog.db import crud
-from kotolog.tools.executor import ToolExecutor
 from tests.conftest import NOW, FakeLLM, make_resp
 
 CHANNEL_SECRET = "test_secret"
@@ -28,7 +27,12 @@ def _sign(body: bytes) -> str:
     return base64.b64encode(h).decode()
 
 
-def _text_event(text: str, event_id: str = "evt_001", reply_token: str = "rtok_001") -> bytes:
+def _text_event(
+    text: str,
+    event_id: str = "evt_001",
+    reply_token: str = "rtok_001",
+    user_id: str = "U_test",
+) -> bytes:
     return json.dumps(
         {
             "destination": "Uxxx",
@@ -37,6 +41,7 @@ def _text_event(text: str, event_id: str = "evt_001", reply_token: str = "rtok_0
                     "type": "message",
                     "webhookEventId": event_id,
                     "replyToken": reply_token,
+                    "source": {"type": "user", "userId": user_id},
                     "message": {"type": "text", "id": "msg_001", "text": text},
                 }
             ],
@@ -71,9 +76,8 @@ def webhook_client(monkeypatch, conn, child_id):
     import kotolog.line.reply as reply_mod
     import kotolog.line.webhook as wh
 
-    executor = ToolExecutor(conn=conn, child_id=child_id, now=NOW)
     llm = FakeLLM([make_resp(content="記録しました。"), make_resp(content="記録しました。")])
-    agent = Agent(client=llm, executor=executor)
+    agent = Agent(client=llm, conn=conn, _now=lambda: NOW)
 
     sent: list[dict] = []
 
@@ -125,3 +129,56 @@ def test_non_text_event_is_ignored(webhook_client):
     resp = client.post("/webhook", content=body, headers={"X-Line-Signature": _sign(body)})
     assert resp.status_code == 200
     assert len(sent) == 0
+
+
+# --- T9.3.1: upsert_user 自動登録 -------------------------------------------
+
+
+def test_text_event_upserts_user(monkeypatch, conn, child_id):
+    """テキストイベント受信時に users テーブルへ自動登録される。"""
+    import kotolog.line.reply as reply_mod
+    import kotolog.line.webhook as wh
+    from kotolog.db import crud as crud_mod
+
+    llm = FakeLLM([make_resp(content="ok")])
+    agent = Agent(client=llm, conn=conn, _now=lambda: NOW)
+
+    monkeypatch.setattr(wh, "_agent", agent)
+    monkeypatch.setattr(reply_mod, "send_reply", lambda *a: None)
+    monkeypatch.setenv("LINE_CHANNEL_SECRET", CHANNEL_SECRET)
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", ACCESS_TOKEN)
+
+    client = TestClient(wh.app, raise_server_exceptions=True)
+    body = _text_event("こんにちは", user_id="U_new")
+    client.post("/webhook", content=body, headers={"X-Line-Signature": _sign(body)})
+
+    users = crud_mod.list_users(conn)
+    assert any(u["line_user_id"] == "U_new" for u in users)
+
+
+# --- T9.3.3: 切り替えコマンド -----------------------------------------------
+
+
+def test_switch_child_command_updates_current(monkeypatch, conn, child_id):
+    """「〇〇に切り替え」でそのユーザーの current_child_id が更新される。"""
+    import kotolog.line.reply as reply_mod
+    import kotolog.line.webhook as wh
+    from kotolog.db import crud as crud_mod
+
+    hanako = crud_mod.create_child(conn, "はなこ")
+    crud_mod.upsert_user(conn, "U001")
+
+    llm = FakeLLM([])
+    agent = Agent(client=llm, conn=conn, _now=lambda: NOW)
+    monkeypatch.setattr(wh, "_agent", agent)
+    monkeypatch.setattr(reply_mod, "send_reply", lambda *a: None)
+    monkeypatch.setenv("LINE_CHANNEL_SECRET", CHANNEL_SECRET)
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", ACCESS_TOKEN)
+
+    client = TestClient(wh.app, raise_server_exceptions=True)
+    body = _text_event("はなこに切り替え", user_id="U001")
+    resp = client.post("/webhook", content=body, headers={"X-Line-Signature": _sign(body)})
+    assert resp.status_code == 200
+
+    row = conn.execute("SELECT current_child_id FROM users WHERE line_user_id = ?", ("U001",)).fetchone()
+    assert row["current_child_id"] == hanako

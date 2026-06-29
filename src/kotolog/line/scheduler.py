@@ -39,8 +39,7 @@ def build_morning_text(remaining: int, llm_client) -> str:
 
 
 def _run_morning_push() -> None:
-    """スケジューラから呼ばれる同期ジョブ本体。"""
-    from kotolog.line.push import send_push
+    """スケジューラから呼ばれる同期ジョブ本体。notify_enabled=True の全員へ送信。"""
     from kotolog.llm.client import LLMClient
     from kotolog.obs.usage import new_trace_id, sink_from_config
 
@@ -50,9 +49,8 @@ def _run_morning_push() -> None:
 
     conn = connect(cfg.db_url, cfg.turso_auth_token)
     due_date_str = crud.get_setting(conn, "due_date")
-    line_user_id = crud.get_setting(conn, "line_user_id")
 
-    if not due_date_str or not line_user_id:
+    if not due_date_str:
         return
 
     try:
@@ -67,7 +65,7 @@ def _run_morning_push() -> None:
     new_trace_id()  # この push ジョブの LLM 呼び出しを 1 トレースに紐付ける。
     llm = LLMClient(cfg, sink=sink_from_config(cfg))
     text = build_morning_text(remaining, llm)
-    send_push(line_user_id, text, cfg.line_channel_access_token)
+    _fanout_push(conn, text, cfg.line_channel_access_token)
 
 
 def build_daily_summary_text(today_str: str, records: list[dict]) -> str | None:
@@ -107,23 +105,36 @@ def build_daily_summary_text(today_str: str, records: list[dict]) -> str | None:
     return "\n".join(lines)
 
 
+def _fanout_push(conn, text: str, access_token: str, send_fn=None) -> None:
+    """notify_enabled=True の全ユーザーにテキストを Push する。
+
+    send_fn はテスト用の差し替えポイント。省略時は send_push を使う。
+    """
+    if send_fn is None:
+        from kotolog.line.push import send_push as send_fn  # noqa: PLC0415
+
+    for user in crud.get_notify_users(conn):
+        try:
+            send_fn(user["line_user_id"], text, access_token)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[fanout] push failed for {user['line_user_id']}: {exc}", flush=True)
+
+
 def _run_daily_summary_push() -> None:
-    """毎晩 21:00 に当日の記録サマリーを push する。"""
-    from kotolog.db.crud import ensure_child, query_records
-    from kotolog.line.push import send_push
+    """毎晩 21:00 に当日の記録サマリーを notify_enabled=True の全員へ push する。"""
+    from kotolog.db.crud import get_default_child_id, query_records
 
     cfg = load_config()
     if not cfg.line_channel_access_token:
         return
 
     conn = connect(cfg.db_url, cfg.turso_auth_token)
-    line_user_id = crud.get_setting(conn, "line_user_id")
-    if not line_user_id:
+    child_id = get_default_child_id(conn)
+    if child_id is None:
         return
 
     now = datetime.now(JST)
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    child_id = ensure_child(conn, cfg.default_child)
     records = [
         dict(r)
         for r in query_records(
@@ -138,7 +149,7 @@ def _run_daily_summary_push() -> None:
     if text is None:
         return
 
-    send_push(line_user_id, text, cfg.line_channel_access_token)
+    _fanout_push(conn, text, cfg.line_channel_access_token)
 
 
 async def _morning_job() -> None:

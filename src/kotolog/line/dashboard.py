@@ -69,8 +69,9 @@ def _check_token(token: str | None) -> None:
 def _get_conn_and_child():
     from kotolog.line.webhook import _get_agent
 
-    agent = _get_agent()
-    return agent.executor.conn, agent.executor.child_id
+    conn = _get_agent().conn
+    child_id = crud.get_default_child_id(conn)
+    return conn, child_id
 
 
 @router.get("/dashboard", response_class=HTMLResponse)

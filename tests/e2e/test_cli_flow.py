@@ -20,8 +20,7 @@ def test_full_conversation_persists_to_file_db(tmp_path, fake_llm, resp, tc):
     db_path = str(tmp_path / "e2e.db")
     conn = connect(db_path)
     crud.init_db(conn)
-    child_id = crud.ensure_child(conn, "baby")
-    executor = ToolExecutor(conn=conn, child_id=child_id, now=NOW)
+    crud.ensure_child(conn, "baby")
 
     llm = fake_llm(
         [
@@ -57,7 +56,7 @@ def test_full_conversation_persists_to_file_db(tmp_path, fake_llm, resp, tc):
             resp(content="直近の記録を取り消しました。"),
         ]
     )
-    agent = Agent(client=llm, executor=executor)
+    agent = Agent(client=llm, conn=conn, _now=lambda: NOW)
 
     # 1) 保存 → DBに1件
     r1 = agent.handle("3時にミルク120ml飲んだ")
@@ -107,7 +106,7 @@ def test_daily_summary_narrates_from_aggregates(tmp_path, fake_llm, resp, tc):
             resp(content="今日は授乳2回(220ml)、おむつ1回でした。"),
         ]
     )
-    agent = Agent(client=llm, executor=executor)
+    agent = Agent(client=llm, conn=conn, _now=lambda: NOW)
 
     reply = agent.handle("今日のまとめは？")
 
