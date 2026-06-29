@@ -130,12 +130,7 @@ class Agent:
                     pass
             if saved:
                 children = crud.list_children(self.conn)
-                display_name = None
-                if len(children) > 1:
-                    row = self.conn.execute(
-                        "SELECT name_alias FROM children WHERE id = ?", (child_id,)
-                    ).fetchone()
-                    display_name = row["name_alias"] if row else None
+                display_name = crud.get_child_name(self.conn, child_id) if len(children) > 1 else None
                 return format_confirmation(saved, child_name=display_name)
 
         messages: list[dict] = [{"role": "system", "content": self.system_prompt}]

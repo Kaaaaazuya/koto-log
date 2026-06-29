@@ -314,8 +314,8 @@ async def admin_user_notify(line_user_id: str, token: str | None = None, enabled
 async def admin_user_child(line_user_id: str, token: str | None = None, child_id: str = Form("")):
     _check_token(token)
     conn = _get_conn()
-    if child_id.strip():
-        crud.set_user_current_child(conn, line_user_id, int(child_id))
+    cid = int(child_id) if child_id.strip() else None
+    crud.set_user_current_child(conn, line_user_id, cid)
     return RedirectResponse(f"/admin/users?token={token or ''}&saved=1", status_code=303)
 
 

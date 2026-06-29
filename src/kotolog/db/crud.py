@@ -148,11 +148,6 @@ def upsert_user(conn: sqlite3.Connection, line_user_id: str, nickname: str | Non
             "UPDATE users SET nickname = ?, updated_at = ? WHERE line_user_id = ?",
             (nickname, now, line_user_id),
         )
-    else:
-        conn.execute(
-            "UPDATE users SET updated_at = ? WHERE line_user_id = ?",
-            (now, line_user_id),
-        )
     conn.commit()
 
 
@@ -188,7 +183,13 @@ def delete_user(conn: sqlite3.Connection, line_user_id: str) -> None:
     conn.commit()
 
 
-def set_user_current_child(conn: sqlite3.Connection, line_user_id: str, child_id: int) -> None:
+def get_child_name(conn: sqlite3.Connection, child_id: int) -> str | None:
+    """子の name_alias を返す。見つからなければ None。"""
+    row = conn.execute("SELECT name_alias FROM children WHERE id = ?", (child_id,)).fetchone()
+    return row["name_alias"] if row else None
+
+
+def set_user_current_child(conn: sqlite3.Connection, line_user_id: str, child_id: int | None) -> None:
     conn.execute(
         "UPDATE users SET current_child_id = ?, updated_at = ? WHERE line_user_id = ?",
         (child_id, _now(), line_user_id),
