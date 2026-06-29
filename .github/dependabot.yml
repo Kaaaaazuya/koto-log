@@ -6,15 +6,18 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
     commit-message:
       prefix: "chore(ci)"
     labels:
       - "dependencies"
       - "github-actions"
     groups:
-      actions:
-        patterns: ["*"]
+      actions-patch:
+        update-types: ["patch"]
+      actions-minor:
+        update-types: ["minor"]
+      # major は個別 PR（破壊的変更のため手動レビュー必須）
 
   # Python 依存関係 (uv / pip)
   - package-ecosystem: pip
@@ -29,5 +32,8 @@ updates:
       - "dependencies"
       - "python"
     groups:
-      python-deps:
-        patterns: ["*"]
+      python-deps-patch:
+        update-types: ["patch"]
+      python-deps-minor:
+        update-types: ["minor"]
+      # major は個別 PR（破壊的変更のため手動レビュー必須）
