@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS users (
     line_user_id     TEXT PRIMARY KEY,
     nickname         TEXT,
     notify_enabled   INTEGER NOT NULL DEFAULT 1,
-    current_child_id INTEGER REFERENCES children(id),  -- 会話の現在の対象児
+    current_child_id INTEGER REFERENCES children(id) ON DELETE SET NULL,  -- 会話の現在の対象児
     created_at       TEXT NOT NULL,
     updated_at       TEXT NOT NULL
 );
@@ -66,7 +66,9 @@ CREATE TABLE IF NOT EXISTS users (
 3. 無ければ **世帯の `default_child_id`**。
 4. 子が 1 人だけなら常にその子。
 
-- **「上の子／下の子」** は登録児の `birthday` 昇順で決定論解決。
+- **「上の子／下の子」** は登録児を `birthday` 昇順で並べて解決。ただし誕生日が
+  NULL や同一（双子等）でも順序が安定するよう、**`id` 昇順をタイブレークに必ず併用**する
+  （`ORDER BY birthday ASC NULLS LAST, id ASC` 相当。NULL は末尾固定）。
 - 明示参照が**どの登録児にも一致しない**場合のみ聞き返す（「どの子？」）。未指定は
   既定児へフォールバック（聞き返さない）= ロードマップ v2 の原則。
 - **抽出スキーマ拡張**: `extractor` の各レコードに任意フィールド `child`（参照語）を
@@ -94,8 +96,10 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 - 起動時 `migrate(conn)` が `schema_migrations` の最大適用版より新しいものを順に適用し、
   各版を 1 トランザクションで実行して版を記録。`PRAGMA user_version` は使わず
   テーブル方式（libsql 互換・明示的）。
-- **既存 DB の扱い**: 初回は、既存テーブルがあり `schema_migrations` が空なら baseline
-  (`0001`) を「適用済み」としてスタンプ（`CREATE TABLE IF NOT EXISTS` 由来の整合は保たれる）。
+- **既存 DB の扱い**: `schema_migrations` が空でも、新規空 DB と既存 DB は区別する。
+  `sqlite_master` で既存テーブル（例: `records` / `children`）の有無を確認し、
+  **既にテーブルがある場合のみ** baseline (`0001`) を「適用済み」としてスタンプする。
+  テーブルが無い新規 DB では baseline をスキップせず通常適用する（スタンプ誤りを防ぐ）。
 - `schema.sql` は baseline（`0001`）として位置づけ、以降の変更は必ずマイグレーションで行う。
 
 ## 理由
