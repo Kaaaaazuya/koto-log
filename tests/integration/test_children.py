@@ -71,6 +71,21 @@ def test_get_or_create_default_child_uses_existing(conn):
     assert len(crud.list_children(conn)) == 1
 
 
+def test_get_default_child_id_when_deleted(conn):
+    """既定児が削除されると get_default_child_id は None を返し、再作成時に新規既定化される。"""
+    existing = crud.create_child(conn, "たろう")
+    assert crud.get_default_child_id(conn) == existing
+
+    conn.execute("DELETE FROM children WHERE id = ?", (existing,))
+    conn.commit()
+
+    assert crud.get_default_child_id(conn) is None
+
+    new_cid = crud.get_or_create_default_child(conn, "baby")
+    assert crud.get_default_child_id(conn) == new_cid
+    assert len(crud.list_children(conn)) == 1
+
+
 def test_user_current_child_on_delete_set_null(conn):
     """children 削除時に users.current_child_id が ON DELETE SET NULL で NULL になる。
 

@@ -58,14 +58,16 @@ def list_children(conn: sqlite3.Connection) -> list[sqlite3.Row]:
 
 
 def get_default_child_id(conn: sqlite3.Connection) -> int | None:
-    """世帯の既定児 id（settings.default_child_id）。未設定・不正値なら None。"""
+    """世帯の既定児 id（settings.default_child_id）。未設定・不正値・存在しない子なら None。"""
     value = get_setting(conn, "default_child_id")
     if value is None:
         return None
     try:
-        return int(value)
+        child_id = int(value)
     except ValueError:
         return None
+    row = conn.execute("SELECT 1 FROM children WHERE id = ?", (child_id,)).fetchone()
+    return child_id if row is not None else None
 
 
 def set_default_child_id(conn: sqlite3.Connection, child_id: int) -> None:
@@ -76,12 +78,11 @@ def get_or_create_default_child(conn: sqlite3.Connection, seed_name: str) -> int
     """既定児 id を解決する。無ければ既存の先頭児を既定化、子が皆無なら seed 児を作成する。
 
     起動時の結線で使う（KOTOLOG_DEFAULT_CHILD への実行時依存を撤廃）。冪等。
+    get_default_child_id が存在確認済みのため重複チェック不要。
     """
     did = get_default_child_id(conn)
     if did is not None:
-        row = conn.execute("SELECT id FROM children WHERE id = ?", (did,)).fetchone()
-        if row is not None:
-            return did
+        return did
     children = list_children(conn)
     if children:
         cid = children[0]["id"]
