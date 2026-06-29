@@ -114,9 +114,12 @@ class Agent:
         # この handle() 内の全 LLM 呼び出し（extract / loop）を 1 トレースに紐付ける。
         new_trace_id()
         extracted, child_name_hint = extract_records(user_text, self.client)
-        child_id = crud.resolve_child_id(
-            self.conn, line_user_id=line_user_id, child_name_hint=child_name_hint
-        )
+        try:
+            child_id = crud.resolve_child_id(
+                self.conn, line_user_id=line_user_id, child_name_hint=child_name_hint
+            )
+        except RuntimeError as e:
+            return str(e)
         executor = ToolExecutor(conn=self.conn, child_id=child_id, now=self._now())
 
         if extracted:

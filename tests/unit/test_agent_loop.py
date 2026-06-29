@@ -257,3 +257,17 @@ def test_handle_sets_trace_id(mock_conn):
             agent.handle("うんち")
 
     assert seen["trace_id"]  # 非空のトレース ID が設定されている
+
+
+def test_resolve_child_runtime_error_returns_message(mock_conn):
+    """resolve_child_id が RuntimeError を投げた場合、そのメッセージを返す（無応答にならない）。"""
+    llm = FakeLLMClient([])
+    with patch("kotolog.agent.loop.extract_records", return_value=([], None)):
+        with patch(
+            "kotolog.agent.loop.crud.resolve_child_id",
+            side_effect=RuntimeError("対象児を解決できませんでした。"),
+        ):
+            agent = Agent(client=llm, conn=mock_conn)
+            result = agent.handle("ミルク120ml")
+
+    assert "対象児を解決できませんでした" in result
