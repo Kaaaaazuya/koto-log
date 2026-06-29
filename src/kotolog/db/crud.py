@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import datetime, timedelta, timezone
-from importlib import resources
+
+from kotolog.db.migrations import migrate
 
 JST = timezone(timedelta(hours=9))
 
@@ -20,10 +21,8 @@ def _now() -> str:
 
 
 def init_db(conn: sqlite3.Connection) -> None:
-    """スキーマを適用する（冪等）。"""
-    sql = resources.files("kotolog.db").joinpath("schema.sql").read_text(encoding="utf-8")
-    conn.executescript(sql)
-    conn.commit()
+    """スキーマを適用する（冪等）。マイグレーション基盤経由で前進適用する（P9.0）。"""
+    migrate(conn)
 
 
 def ensure_child(conn: sqlite3.Connection, name_alias: str) -> int:

@@ -175,7 +175,7 @@ sequenceDiagram
 src/kotolog/
 ├── types.py            # RecordType / FeedingSubType / DiaperSubType enum
 ├── config.py           # .env からの設定読込
-├── db/                 # connection・crud・schema.sql（settings テーブル含む）
+├── db/                 # connection・crud・schema.sql・migrations（schema_migrations）
 ├── utils/
 │   ├── timeparse.py    # 相対時刻 → JST絶対時刻
 │   └── subtype.py      # sub_type 表記ゆれ正規化
