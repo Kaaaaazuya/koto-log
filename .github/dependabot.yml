@@ -1,0 +1,25 @@
+version: 2
+updates:
+  # GitHub Actions の SHA ピン留めを自動更新
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Python 依存関係 (uv / pip)
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      python-deps:
+        patterns: ["*"]

@@ -1,0 +1,56 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 1 * * 1" # 毎週月曜 01:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-audit:
+    name: pip-audit (CVE scan)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb # v5.4.1
+        with:
+          enable-cache: true
+
+      - name: Export requirements
+        run: uv export --frozen --no-dev --format requirements-txt -o /tmp/requirements.txt
+
+      - name: Audit dependencies
+        uses: pypa/gh-action-pip-audit@f91c79082b5f6ec6f20e5c3e5f8f8434c5e95b58 # v1.1.0
+        with:
+          inputs: /tmp/requirements.txt
+
+  sast:
+    name: bandit (SAST)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb # v5.4.1
+        with:
+          enable-cache: true
+
+      - name: Install bandit
+        run: uv tool install bandit
+
+      - name: Run bandit
+        # -ll: medium severity 以上のみ報告、-ii: medium confidence 以上のみ
+        run: bandit -r src/ -ll -ii --exit-zero --format json | tee /tmp/bandit.json
+          && python -c "
+import json, sys
+data = json.load(open('/tmp/bandit.json'))
+issues = data['results']
+if issues:
+    for i in issues:
+        print(f\"[{i['issue_severity']}/{i['issue_confidence']}] {i['filename']}:{i['line_number']} - {i['issue_text']}\")
+    sys.exit(1)
+"
