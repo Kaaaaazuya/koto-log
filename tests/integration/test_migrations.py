@@ -97,3 +97,18 @@ def test_pending_migration_applied_once(monkeypatch):
 
     assert _versions(conn) == [1, 2]
     conn.close()
+
+
+def test_duplicate_versions_raise(monkeypatch):
+    """MIGRATIONS に重複 version があれば ValueError（適用漏れ防止）。"""
+    import pytest
+
+    monkeypatch.setattr(
+        mig,
+        "MIGRATIONS",
+        [(2, "CREATE TABLE IF NOT EXISTS a (id INTEGER)"), (2, "CREATE TABLE IF NOT EXISTS b (id INTEGER)")],
+    )
+    conn = connect(":memory:")
+    with pytest.raises(ValueError):
+        migrate(conn)
+    conn.close()

@@ -75,6 +75,10 @@ def _has_core_tables(conn) -> bool:
 
 def migrate(conn) -> None:
     """未適用のマイグレーションを順に適用する（前進のみ・冪等）。"""
+    versions = [v for v, _ in MIGRATIONS]
+    if len(versions) != len(set(versions)):
+        raise ValueError(f"MIGRATIONS に重複した version があります: {sorted(versions)}")
+
     _ensure_migrations_table(conn)
     applied = _applied_versions(conn)
 
