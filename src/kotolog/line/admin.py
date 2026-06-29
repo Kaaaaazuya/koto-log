@@ -7,7 +7,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -275,3 +275,74 @@ async def admin_record_delete(record_id: int, token: str | None = None):
     conn, _ = _get_conn_and_child()
     crud.delete_record(conn, record_id)
     return RedirectResponse(f"/admin/records?token={token or ''}&deleted=1", status_code=303)
+
+
+# --- 他アプリからの移行インポート -------------------------------------------
+
+
+@router.get("/admin/import", response_class=HTMLResponse)
+async def admin_import_page(
+    request: Request,
+    token: str | None = None,
+    imported: int | None = None,
+    skipped: int | None = None,
+):
+    _check_token(token)
+    return _templates.TemplateResponse(
+        request,
+        "admin_import.html",
+        {"token": token or "", "imported": imported, "skipped": skipped},
+    )
+
+
+@router.post("/admin/import/piyolog")
+async def admin_import_piyolog(
+    token: str | None = None,
+    file: UploadFile = File(...),
+):
+    _check_token(token)
+    from kotolog.importer.piyolog import parse_piyolog
+
+    content = await file.read()
+    text: str | None = None
+    for enc in ("utf-8-sig", "utf-8", "shift_jis"):
+        try:
+            text = content.decode(enc)
+            break
+        except (UnicodeDecodeError, LookupError):
+            pass
+    if text is None:
+        text = content.decode("utf-8", errors="replace")
+
+    parsed = parse_piyolog(text)
+    conn, child_id = _get_conn_and_child()
+
+    imported_count = 0
+    skipped_count = 0
+    for rec in parsed:
+        if rec.type not in set(RecordType):
+            continue
+        exists = conn.execute(
+            "SELECT 1 FROM records WHERE child_id=? AND type=? AND started_at=?",
+            (child_id, rec.type, rec.started_at),
+        ).fetchone()
+        if exists:
+            skipped_count += 1
+            continue
+        crud.insert_record(
+            conn,
+            child_id=child_id,
+            type=rec.type,
+            sub_type=rec.sub_type,
+            amount=rec.amount,
+            unit=rec.unit,
+            started_at=rec.started_at,
+            ended_at=rec.ended_at,
+            note=rec.note,
+        )
+        imported_count += 1
+
+    return RedirectResponse(
+        f"/admin/import?token={token or ''}&imported={imported_count}&skipped={skipped_count}",
+        status_code=303,
+    )
