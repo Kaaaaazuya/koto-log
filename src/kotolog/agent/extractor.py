@@ -121,7 +121,7 @@ def format_confirmation(saved: list[dict], child_name: str | None = None) -> str
             try:
                 amt = float(r["amount"])
                 amt_str = str(int(amt)) if amt == int(amt) else str(amt)
-            except (ValueError, TypeError):
+            except (ValueError, TypeError, OverflowError):
                 amt_str = str(r["amount"])
             unit = r.get("unit") or ("ml" if r.get("type") == "feeding" else "")
             amount = f" {amt_str}{unit}"
