@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from importlib import resources
 from pathlib import Path
 
@@ -159,6 +160,7 @@ async def dashboard(request: Request, token: str | None = None, days: int = 7):
     )
 
 
+@lru_cache(maxsize=1)
 def _load_growth_standards() -> dict:
     text = resources.files("kotolog.data").joinpath("growth_standards.json").read_text(encoding="utf-8")
     return json.loads(text)
