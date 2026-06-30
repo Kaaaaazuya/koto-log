@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from kotolog.db import crud
-from kotolog.types import RecordType
+from kotolog.types import RECORD_TYPE_LABELS, RecordType
 from kotolog.utils.subtype import normalize_sub_type
 
 router = APIRouter()
@@ -114,12 +114,7 @@ async def admin_test_push(token: str | None = None):
 
 # --- 記録 CRUD（AIなし手動編集 / ADR-0003） --------------------------------
 
-_TYPE_LABELS = {
-    RecordType.FEEDING: "授乳",
-    RecordType.SLEEP: "睡眠",
-    RecordType.DIAPER: "おむつ",
-    RecordType.TEMP: "体温",
-}
+_TYPE_LABELS = RECORD_TYPE_LABELS
 
 
 @router.get("/admin/records", response_class=HTMLResponse)
