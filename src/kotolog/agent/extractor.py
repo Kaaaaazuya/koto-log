@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 
+from kotolog.types import RECORD_TYPE_LABELS
+
 _EXTRACT_TOOL = {
     "type": "function",
     "function": {
@@ -71,17 +73,7 @@ _EXTRACT_SYSTEM = (
     "記録でない（質問・集計・修正など）は records を空リストにする。"
 )
 
-_TYPE_LABELS = {
-    "feeding": "授乳",
-    "sleep": "睡眠",
-    "diaper": "おむつ",
-    "temp": "体温",
-    "baby_food": "離乳食",
-    "bath": "お風呂",
-    "medicine": "薬",
-    "hospital": "病院",
-    "outing": "外出",
-}
+_TYPE_LABELS = RECORD_TYPE_LABELS
 
 
 def extract_records(text: str, llm_client) -> tuple[list[dict], str | None]:
@@ -126,9 +118,12 @@ def format_confirmation(saved: list[dict], child_name: str | None = None) -> str
             time = time[11:16]
         sub = f"({r['sub_type']})" if r.get("sub_type") else ""
         if r.get("amount"):
-            amt = r["amount"]
-            amt_str = str(int(amt)) if amt == int(amt) else str(amt)
-            unit = r.get("unit") or ("ml" if r.get("type") in ("feeding",) else "")
+            try:
+                amt = float(r["amount"])
+                amt_str = str(int(amt)) if amt == int(amt) else str(amt)
+            except (ValueError, TypeError):
+                amt_str = str(r["amount"])
+            unit = r.get("unit") or ("ml" if r.get("type") == "feeding" else "")
             amount = f" {amt_str}{unit}"
         else:
             amount = ""

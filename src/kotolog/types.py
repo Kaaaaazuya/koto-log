@@ -31,3 +31,16 @@ class DiaperSubType(StrEnum):
     POO = "うんち"
     PEE = "おしっこ"
     BOTH = "両方"
+
+
+RECORD_TYPE_LABELS: dict[str, str] = {
+    RecordType.FEEDING: "授乳",
+    RecordType.SLEEP: "睡眠",
+    RecordType.DIAPER: "おむつ",
+    RecordType.TEMP: "体温",
+    RecordType.BABY_FOOD: "離乳食",
+    RecordType.BATH: "お風呂",
+    RecordType.MEDICINE: "薬",
+    RecordType.HOSPITAL: "病院",
+    RecordType.OUTING: "外出",
+}
