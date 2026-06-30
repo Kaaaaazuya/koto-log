@@ -162,7 +162,7 @@ async def dashboard(request: Request, token: str | None = None, days: int = 7):
 
 @lru_cache(maxsize=1)
 def _load_growth_standards() -> dict:
-    text = resources.files("kotolog.data").joinpath("growth_standards.json").read_text(encoding="utf-8")
+    text = resources.files("kotolog").joinpath("data", "growth_standards.json").read_text(encoding="utf-8")
     return json.loads(text)
 
 
@@ -186,11 +186,17 @@ async def dashboard_growth(request: Request, token: str | None = None):
     birthday = child_row["birthday"] if child_row else None
     sex = (child_row["sex"] if child_row else None) or "male"
 
-    def _age_months(iso_date: str) -> float | None:
-        if not birthday:
-            return None
+    bd = None
+    if birthday:
         try:
             bd = datetime.fromisoformat(birthday).replace(tzinfo=None)
+        except (ValueError, TypeError):
+            pass
+
+    def _age_months(iso_date: str) -> float | None:
+        if bd is None:
+            return None
+        try:
             rec = datetime.fromisoformat(iso_date).replace(tzinfo=None)
             return max(0.0, (rec - bd).days / 30.44)
         except (ValueError, TypeError):
