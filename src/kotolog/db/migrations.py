@@ -40,8 +40,14 @@ CREATE TABLE IF NOT EXISTS users (
 );
 """
 
+# 0003: children.sex カラム追加（P11 成長曲線で男女別標準値を参照するため）。
+_M0003_CHILD_SEX = """
+ALTER TABLE children ADD COLUMN sex TEXT CHECK (sex IN ('male', 'female'));
+"""
+
 MIGRATIONS: list[tuple[int, str]] = [
     (2, _M0002_USERS),
+    (3, _M0003_CHILD_SEX),
 ]
 
 # 既存DB判定に使うコアテーブル（どれかがあれば「既存DB」とみなす）
@@ -119,7 +125,15 @@ def migrate(conn) -> None:
     # 後続の失敗で既適用版の記録を失わないようにする。
     for version, sql in sorted(MIGRATIONS, key=lambda m: m[0]):
         if version not in applied:
-            conn.executescript(sql)
+            try:
+                conn.executescript(sql)
+            except Exception as e:
+                # ALTER TABLE ADD COLUMN は IF NOT EXISTS を持たないため、プロセス中断後の
+                # 再起動で「duplicate column name」エラーになりうる。その場合はカラムが
+                # 既に存在していると判断して記録のみ行い、次の起動で問題が出ないようにする。
+                msg = str(e).lower()
+                if "duplicate column name" not in msg and "already exists" not in msg:
+                    raise
             _record(conn, version)
             applied.add(version)
             conn.commit()
