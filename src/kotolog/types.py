@@ -14,6 +14,11 @@ class RecordType(StrEnum):
     SLEEP = "sleep"
     DIAPER = "diaper"
     TEMP = "temp"
+    BABY_FOOD = "baby_food"
+    BATH = "bath"
+    MEDICINE = "medicine"
+    HOSPITAL = "hospital"
+    OUTING = "outing"
 
 
 class FeedingSubType(StrEnum):

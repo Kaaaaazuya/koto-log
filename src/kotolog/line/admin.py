@@ -119,6 +119,11 @@ _TYPE_LABELS = {
     RecordType.SLEEP: "睡眠",
     RecordType.DIAPER: "おむつ",
     RecordType.TEMP: "体温",
+    RecordType.BABY_FOOD: "離乳食",
+    RecordType.BATH: "お風呂",
+    RecordType.MEDICINE: "薬",
+    RecordType.HOSPITAL: "病院",
+    RecordType.OUTING: "外出",
 }
 
 

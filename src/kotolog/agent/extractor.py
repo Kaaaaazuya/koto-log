@@ -14,7 +14,7 @@ _EXTRACT_TOOL = {
     "function": {
         "name": "extract_records",
         "description": (
-            "メッセージに含まれる全ての育児記録（授乳・睡眠・おむつ・体温）を抽出して返す。"
+            "メッセージに含まれる全ての育児記録（授乳・睡眠・おむつ・体温・離乳食・お風呂・薬・病院・外出）を抽出して返す。"
             "記録でない場合（質問・集計・修正・設定変更など）は records を空リストにする。"
         ),
         "parameters": {
@@ -27,7 +27,17 @@ _EXTRACT_TOOL = {
                         "properties": {
                             "type": {
                                 "type": "string",
-                                "enum": ["feeding", "sleep", "diaper", "temp"],
+                                "enum": [
+                                    "feeding",
+                                    "sleep",
+                                    "diaper",
+                                    "temp",
+                                    "baby_food",
+                                    "bath",
+                                    "medicine",
+                                    "hospital",
+                                    "outing",
+                                ],
                             },
                             "sub_type": {
                                 "type": "string",
@@ -57,11 +67,21 @@ _EXTRACT_TOOL = {
 
 _EXTRACT_SYSTEM = (
     "育児記録抽出アシスタント。"
-    "メッセージから授乳・睡眠・おむつ・体温の記録を全て抽出せよ。"
+    "メッセージから授乳・睡眠・おむつ・体温・離乳食・お風呂・薬・病院・外出の記録を全て抽出せよ。"
     "記録でない（質問・集計・修正など）は records を空リストにする。"
 )
 
-_TYPE_LABELS = {"feeding": "授乳", "sleep": "睡眠", "diaper": "おむつ", "temp": "体温"}
+_TYPE_LABELS = {
+    "feeding": "授乳",
+    "sleep": "睡眠",
+    "diaper": "おむつ",
+    "temp": "体温",
+    "baby_food": "離乳食",
+    "bath": "お風呂",
+    "medicine": "薬",
+    "hospital": "病院",
+    "outing": "外出",
+}
 
 
 def extract_records(text: str, llm_client) -> tuple[list[dict], str | None]:
@@ -105,7 +125,13 @@ def format_confirmation(saved: list[dict], child_name: str | None = None) -> str
         if len(time) >= 16:
             time = time[11:16]
         sub = f"({r['sub_type']})" if r.get("sub_type") else ""
-        amount = f" {int(r['amount'])}{r.get('unit') or 'ml'}" if r.get("amount") else ""
+        if r.get("amount"):
+            amt = r["amount"]
+            amt_str = str(int(amt)) if amt == int(amt) else str(amt)
+            unit = r.get("unit") or ("ml" if r.get("type") in ("feeding",) else "")
+            amount = f" {amt_str}{unit}"
+        else:
+            amount = ""
         lines.append(f"{label}{sub}{amount}（{time}）記録した")
     body = "\n".join(lines)
     if child_name:

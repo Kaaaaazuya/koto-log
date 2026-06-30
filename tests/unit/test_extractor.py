@@ -9,6 +9,8 @@ import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from kotolog.agent.extractor import extract_records, format_confirmation
 
 # ---------------------------------------------------------------------------
@@ -233,3 +235,58 @@ def test_extract_child_name_none_when_absent():
     llm = FakeLLMClient(_extract_resp(records))
     result_records, child_name = extract_records("授乳した", llm)
     assert child_name is None
+
+
+# ---------------------------------------------------------------------------
+# P10: 新レコード種別
+# ---------------------------------------------------------------------------
+
+
+def test_extract_tool_schema_includes_p10_types():
+    """P10 追加種別が extract_records スキーマの enum に含まれる。"""
+    llm = FakeLLMClient(_extract_resp([]))
+    extract_records("テスト", llm)
+    enum_values = llm.last_tools[0]["function"]["parameters"]["properties"]["records"]["items"]["properties"][
+        "type"
+    ]["enum"]
+    for t in ("baby_food", "bath", "medicine", "hospital", "outing"):
+        assert t in enum_values, f"{t} が enum にない"
+
+
+@pytest.mark.parametrize(
+    ("record_type", "expected_label"),
+    [
+        ("baby_food", "離乳食"),
+        ("bath", "お風呂"),
+        ("medicine", "薬"),
+        ("hospital", "病院"),
+        ("outing", "外出"),
+    ],
+)
+def test_format_confirmation_p10_types(record_type, expected_label):
+    """P10 追加種別が format_confirmation で正しいラベルになる。"""
+    saved = [{"type": record_type, "started_at": "2024-01-01T10:00:00+09:00"}]
+    text = format_confirmation(saved)
+    assert expected_label in text
+    assert "記録した" in text
+
+
+def test_format_confirmation_medicine_decimal_amount():
+    """薬の小数量（0.5g）が切り捨てられず正しく表示される。"""
+    saved = [{"type": "medicine", "amount": 0.5, "unit": "g", "started_at": "2024-01-01T10:00:00+09:00"}]
+    text = format_confirmation(saved)
+    assert "0.5g" in text
+
+
+def test_format_confirmation_feeding_defaults_to_ml():
+    """授乳で unit 省略時は ml がデフォルト補完される。"""
+    saved = [{"type": "feeding", "amount": 120.0, "unit": None, "started_at": "2024-01-01T09:00:00+09:00"}]
+    text = format_confirmation(saved)
+    assert "120ml" in text
+
+
+def test_format_confirmation_bath_no_unit():
+    """お風呂は amount がなくても unit='ml' が付かない。"""
+    saved = [{"type": "bath", "started_at": "2024-01-01T20:00:00+09:00"}]
+    text = format_confirmation(saved)
+    assert "ml" not in text
