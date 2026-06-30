@@ -19,6 +19,8 @@ class RecordType(StrEnum):
     MEDICINE = "medicine"
     HOSPITAL = "hospital"
     OUTING = "outing"
+    HEIGHT = "height"
+    WEIGHT = "weight"
 
 
 class FeedingSubType(StrEnum):
@@ -43,4 +45,6 @@ RECORD_TYPE_LABELS: dict[str, str] = {
     RecordType.MEDICINE: "薬",
     RecordType.HOSPITAL: "病院",
     RecordType.OUTING: "外出",
+    RecordType.HEIGHT: "身長",
+    RecordType.WEIGHT: "体重",
 }

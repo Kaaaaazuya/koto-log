@@ -18,6 +18,7 @@ sqlite3 / libsql の両接続に対応（どちらも execute/executescript/comm
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from importlib import resources
 
@@ -40,8 +41,19 @@ CREATE TABLE IF NOT EXISTS users (
 );
 """
 
-MIGRATIONS: list[tuple[int, str]] = [
+
+# 0003: children.sex カラム追加（P11 成長曲線で男女別標準値を参照するため）。
+# ALTER TABLE ADD COLUMN は IF NOT EXISTS 不可のため、PRAGMA table_info で存在確認してから実行。
+def _M0003_CHILD_SEX(conn) -> None:
+    cursor = conn.execute("PRAGMA table_info(children)")
+    columns = [row["name"] for row in cursor.fetchall()]
+    if "sex" not in columns:
+        conn.execute("ALTER TABLE children ADD COLUMN sex TEXT CHECK (sex IN ('male', 'female'))")
+
+
+MIGRATIONS: list[tuple[int, str | Callable]] = [
     (2, _M0002_USERS),
+    (3, _M0003_CHILD_SEX),
 ]
 
 # 既存DB判定に使うコアテーブル（どれかがあれば「既存DB」とみなす）
@@ -117,9 +129,12 @@ def migrate(conn) -> None:
 
     # version 昇順で適用（MIGRATIONS のリスト順には依存しない）。各版を適用直後にコミットし、
     # 後続の失敗で既適用版の記録を失わないようにする。
-    for version, sql in sorted(MIGRATIONS, key=lambda m: m[0]):
+    for version, migration in sorted(MIGRATIONS, key=lambda m: m[0]):
         if version not in applied:
-            conn.executescript(sql)
+            if callable(migration):
+                migration(conn)
+            else:
+                conn.executescript(migration)
             _record(conn, version)
             applied.add(version)
             conn.commit()

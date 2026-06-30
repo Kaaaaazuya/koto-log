@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
+from importlib import resources
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
@@ -153,5 +156,78 @@ async def dashboard(request: Request, token: str | None = None, days: int = 7):
             "days": days,
             "now": now.strftime("%Y/%m/%d %H:%M"),
             "token": token or "",
+        },
+    )
+
+
+@lru_cache(maxsize=1)
+def _load_growth_standards() -> dict:
+    text = resources.files("kotolog").joinpath("data", "growth_standards.json").read_text(encoding="utf-8")
+    return json.loads(text)
+
+
+@router.get("/dashboard/growth", response_class=HTMLResponse)
+async def dashboard_growth(request: Request, token: str | None = None):
+    """成長曲線ページ（身長・体重と標準値の比較）。"""
+    _check_token(token)
+    conn, child_id = _get_conn_and_child()
+
+    now = datetime.now(JST)
+    start = (now - timedelta(days=365 * 3)).isoformat()
+
+    height_records = crud.query_records(
+        conn, child_id=child_id, start=start, end=now.isoformat(), type=RecordType.HEIGHT
+    )
+    weight_records = crud.query_records(
+        conn, child_id=child_id, start=start, end=now.isoformat(), type=RecordType.WEIGHT
+    )
+
+    child_row = conn.execute("SELECT birthday, sex FROM children WHERE id = ?", (child_id,)).fetchone()
+    birthday = child_row["birthday"] if child_row else None
+    sex = (child_row["sex"] if child_row else None) or "male"
+
+    bd = None
+    if birthday:
+        try:
+            bd = datetime.fromisoformat(birthday).replace(tzinfo=None)
+        except (ValueError, TypeError):
+            pass
+
+    def _age_months(iso_date: str) -> float | None:
+        if bd is None:
+            return None
+        try:
+            rec = datetime.fromisoformat(iso_date).replace(tzinfo=None)
+            return max(0.0, (rec - bd).days / 30.44)
+        except (ValueError, TypeError):
+            return None
+
+    def _to_chart_data(records) -> list[dict]:
+        points = []
+        for r in records:
+            age = _age_months(r["started_at"])
+            if age is not None and r["amount"] is not None:
+                points.append({"x": round(age, 1), "y": r["amount"]})
+        return sorted(points, key=lambda p: p["x"])
+
+    standards = _load_growth_standards()
+    std = standards.get(sex, standards["male"])
+
+    return _templates.TemplateResponse(
+        request,
+        "dashboard_growth.html",
+        {
+            "token": token or "",
+            "height_data": json.dumps(_to_chart_data(height_records)),
+            "weight_data": json.dumps(_to_chart_data(weight_records)),
+            "std_months": json.dumps(std["height"]["months"]),
+            "height_p3": json.dumps(std["height"]["p3"]),
+            "height_p50": json.dumps(std["height"]["p50"]),
+            "height_p97": json.dumps(std["height"]["p97"]),
+            "weight_p3": json.dumps(std["weight"]["p3"]),
+            "weight_p50": json.dumps(std["weight"]["p50"]),
+            "weight_p97": json.dumps(std["weight"]["p97"]),
+            "has_birthday": bool(birthday),
+            "sex": sex,
         },
     )

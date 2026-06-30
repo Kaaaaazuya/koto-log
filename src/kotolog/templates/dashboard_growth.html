@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>成長曲線 – koto-log</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, sans-serif; background: #faf7f4; color: #333; padding: 16px; }
+    h1 { font-size: 1.2rem; color: #666; margin-bottom: 16px; }
+    .back { font-size: .85rem; color: #e07a5f; text-decoration: none; display: inline-block; margin-bottom: 16px; }
+    .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    h2 { font-size: .95rem; color: #888; margin-bottom: 12px; }
+    .chart-wrap { position: relative; height: 260px; }
+    .notice { padding: 12px 16px; background: #fff8e7; border-radius: 8px; font-size: .85rem; color: #b07030; margin-bottom: 16px; }
+    .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: .78rem; color: #888; margin-top: 8px; }
+    .legend span::before { content: "—"; margin-right: 4px; }
+    .legend .l-p3::before { color: #c8d8f0; }
+    .legend .l-p50::before { color: #4a80c4; }
+    .legend .l-p97::before { color: #c8d8f0; }
+    .legend .l-child::before { content: "●"; color: #e07a5f; }
+  </style>
+</head>
+<body>
+  <a class="back" href="/dashboard?token={{ token }}">← ダッシュボード</a>
+  <h1>成長曲線</h1>
+
+  {% if not has_birthday %}
+  <div class="notice">
+    誕生日が未設定のため月齢を計算できません。<a href="/admin?token={{ token }}">管理画面</a>で子の誕生日を設定してください。
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2>身長 (cm)</h2>
+    <div class="chart-wrap">
+      <canvas id="heightChart"></canvas>
+    </div>
+    <div class="legend">
+      <span class="l-p3">P3（低め）</span>
+      <span class="l-p50">P50（中央値）</span>
+      <span class="l-p97">P97（高め）</span>
+      <span class="l-child">記録</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>体重 (kg)</h2>
+    <div class="chart-wrap">
+      <canvas id="weightChart"></canvas>
+    </div>
+    <div class="legend">
+      <span class="l-p3">P3</span>
+      <span class="l-p50">P50</span>
+      <span class="l-p97">P97</span>
+      <span class="l-child">記録</span>
+    </div>
+  </div>
+
+<script>
+const STD_MONTHS = {{ std_months | safe }};
+const HEIGHT_P3  = {{ height_p3  | safe }};
+const HEIGHT_P50 = {{ height_p50 | safe }};
+const HEIGHT_P97 = {{ height_p97 | safe }};
+const WEIGHT_P3  = {{ weight_p3  | safe }};
+const WEIGHT_P50 = {{ weight_p50 | safe }};
+const WEIGHT_P97 = {{ weight_p97 | safe }};
+const HEIGHT_DATA = {{ height_data | safe }};
+const WEIGHT_DATA = {{ weight_data | safe }};
+
+function stdDataset(label, months, values, color, fill, fillTarget) {
+  return {
+    label,
+    data: months.map((m, i) => ({ x: m, y: values[i] })),
+    borderColor: color,
+    backgroundColor: fill ? color + '22' : 'transparent',
+    fill: fillTarget ?? false,
+    borderWidth: fill ? 1 : 2,
+    borderDash: fill ? [4, 4] : [],
+    pointRadius: 0,
+    tension: 0.4,
+    showLine: true,
+  };
+}
+
+function childDataset(data, color) {
+  return {
+    label: '記録',
+    data,
+    borderColor: color,
+    backgroundColor: color,
+    pointRadius: 5,
+    pointHoverRadius: 7,
+    showLine: true,
+    borderWidth: 2,
+    tension: 0.3,
+  };
+}
+
+const commonOpts = {
+  responsive: true,
+  maintainAspectRatio: false,
+  scales: {
+    x: { type: 'linear', title: { display: true, text: '月齢（ヶ月）' }, min: 0, suggestedMax: 37 },
+    y: { title: { display: true, text: '' } },
+  },
+  plugins: { legend: { display: false } },
+};
+
+new Chart(document.getElementById('heightChart'), {
+  type: 'scatter',
+  data: {
+    datasets: [
+      stdDataset('P3', STD_MONTHS, HEIGHT_P3, '#c8d8f0', true, '+1'),
+      stdDataset('P50', STD_MONTHS, HEIGHT_P50, '#4a80c4', false),
+      stdDataset('P97', STD_MONTHS, HEIGHT_P97, '#c8d8f0', true, '-1'),
+      childDataset(HEIGHT_DATA, '#e07a5f'),
+    ],
+  },
+  options: { ...commonOpts, scales: { ...commonOpts.scales, y: { title: { display: true, text: 'cm' } } } },
+});
+
+new Chart(document.getElementById('weightChart'), {
+  type: 'scatter',
+  data: {
+    datasets: [
+      stdDataset('P3', STD_MONTHS, WEIGHT_P3, '#c8d8f0', true, '+1'),
+      stdDataset('P50', STD_MONTHS, WEIGHT_P50, '#4a80c4', false),
+      stdDataset('P97', STD_MONTHS, WEIGHT_P97, '#c8d8f0', true, '-1'),
+      childDataset(WEIGHT_DATA, '#e07a5f'),
+    ],
+  },
+  options: { ...commonOpts, scales: { ...commonOpts.scales, y: { title: { display: true, text: 'kg' } } } },
+});
+</script>
+</body>
+</html>
