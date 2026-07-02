@@ -465,9 +465,7 @@ async def admin_approvals(request: Request, token: str | None = None, approved: 
 
 
 @router.post("/admin/approvals/{line_user_id}/approve")
-async def admin_approve_user(
-    request: Request, line_user_id: str, token: str | None = None
-):
+async def admin_approve_user(request: Request, line_user_id: str, token: str | None = None):
     """ユーザーを承認する。"""
     _check_token(token, request)
     # Issue #32: Validate CSRF token (get from form data)
@@ -479,9 +477,7 @@ async def admin_approve_user(
 
 
 @router.post("/admin/approvals/{line_user_id}/reject")
-async def admin_reject_user(
-    request: Request, line_user_id: str, token: str | None = None
-):
+async def admin_reject_user(request: Request, line_user_id: str, token: str | None = None):
     """ユーザーを却下（削除）する。"""
     _check_token(token, request)
     # Issue #32: Validate CSRF token (get from form data)
