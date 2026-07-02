@@ -20,9 +20,7 @@ from kotolog.db import crud
 def test_new_user_is_unapproved(conn):
     """新規ユーザーは approved=False で登録される。"""
     crud.upsert_user(conn, "U_EXTERNAL_001")
-    row = conn.execute(
-        "SELECT approved FROM users WHERE line_user_id = ?", ("U_EXTERNAL_001",)
-    ).fetchone()
+    row = conn.execute("SELECT approved FROM users WHERE line_user_id = ?", ("U_EXTERNAL_001",)).fetchone()
     assert row is not None
     assert row["approved"] == 0  # False
 
@@ -32,9 +30,7 @@ def test_unapproved_status_persists(conn):
     crud.upsert_user(conn, "U_EXTERNAL_002")
     # 別リクエストで同じユーザーをアップサート
     crud.upsert_user(conn, "U_EXTERNAL_002", nickname="テスト")
-    row = conn.execute(
-        "SELECT approved FROM users WHERE line_user_id = ?", ("U_EXTERNAL_002",)
-    ).fetchone()
+    row = conn.execute("SELECT approved FROM users WHERE line_user_id = ?", ("U_EXTERNAL_002",)).fetchone()
     # approved は still False のままでなくてはいけない
     assert row["approved"] == 0
 
@@ -43,9 +39,7 @@ def test_approve_user(conn):
     """管理者がユーザーを承認できる。"""
     crud.upsert_user(conn, "U_EXTERNAL_003")
     crud.approve_user(conn, "U_EXTERNAL_003")
-    row = conn.execute(
-        "SELECT approved FROM users WHERE line_user_id = ?", ("U_EXTERNAL_003",)
-    ).fetchone()
+    row = conn.execute("SELECT approved FROM users WHERE line_user_id = ?", ("U_EXTERNAL_003",)).fetchone()
     assert row["approved"] == 1  # True
 
 
@@ -79,9 +73,7 @@ def test_reject_user(conn):
     crud.reject_user(conn, "U_EXTERNAL_007")
 
     # ユーザーが削除される
-    row = conn.execute(
-        "SELECT * FROM users WHERE line_user_id = ?", ("U_EXTERNAL_007",)
-    ).fetchone()
+    row = conn.execute("SELECT * FROM users WHERE line_user_id = ?", ("U_EXTERNAL_007",)).fetchone()
     assert row is None
 
 

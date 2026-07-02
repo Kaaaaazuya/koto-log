@@ -45,6 +45,7 @@ def client(monkeypatch):
 def _get_csrf_token(client, url):
     """Fetch a form page and extract the CSRF token."""
     import re
+
     resp = client.get(url)
     match = re.search(r'value="([^"]+)".*?name="csrf_token"', resp.text)
     if not match:

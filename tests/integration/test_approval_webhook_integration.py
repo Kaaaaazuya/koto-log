@@ -44,9 +44,7 @@ def test_webhook_creates_unapproved_user_on_first_message(conn):
     assert user is None  # get_user returns None for unapproved
 
     # But the user exists in the DB
-    row = conn.execute(
-        "SELECT * FROM users WHERE line_user_id = ?", ("U_EXT_WEBHOOK_001",)
-    ).fetchone()
+    row = conn.execute("SELECT * FROM users WHERE line_user_id = ?", ("U_EXT_WEBHOOK_001",)).fetchone()
     assert row is not None
     assert row["approved"] == 0
 
@@ -110,9 +108,7 @@ def test_rejection_flow_for_external_user(conn):
     crud.reject_user(conn, external_user)
 
     # 3. User is deleted from DB
-    row = conn.execute(
-        "SELECT * FROM users WHERE line_user_id = ?", (external_user,)
-    ).fetchone()
+    row = conn.execute("SELECT * FROM users WHERE line_user_id = ?", (external_user,)).fetchone()
     assert row is None
 
     # 4. If user sends another message, they'll be re-registered as unapproved
