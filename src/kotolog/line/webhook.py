@@ -13,10 +13,12 @@ import hmac
 import json
 import os
 import re
+import secrets
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
+from starlette.middleware.sessions import SessionMiddleware
 
 from kotolog.db import crud
 from kotolog.line.admin import router as admin_router
@@ -37,6 +39,21 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+# Session middleware for cookie-based authentication (Issue #28)
+# Use a strong secret key from environment or generate a random one
+_SESSION_SECRET = os.environ.get("SESSION_SECRET_KEY", secrets.token_urlsafe(32))
+_HTTPS_ONLY = os.environ.get("SESSION_COOKIE_SECURE", "true").lower() == "true"
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=_SESSION_SECRET,
+    session_cookie="kotolog_session",
+    max_age=86400 * 7,  # 7 days
+    path="/admin",
+    https_only=_HTTPS_ONLY,
+    same_site="strict",
+)
+
 app.include_router(dashboard_router)
 app.include_router(admin_router)
 
@@ -143,6 +160,21 @@ async def _handle_text_event(event: dict) -> None:
         user_id = event.get("source", {}).get("userId", "") or None
         if user_id:
             crud.upsert_user(conn, user_id)
+            # Test environment: auto-approve all users (set KOTOLOG_APPROVE_ALL_USERS=true)
+            if os.environ.get("KOTOLOG_APPROVE_ALL_USERS") == "true":
+                if not crud.is_user_approved(conn, user_id):
+                    crud.approve_user(conn, user_id)
+            # Issue #29: Check if user is approved
+            if not crud.is_user_approved(conn, user_id):
+                reply_text = (
+                    "ご登録ありがとうございます。\n"
+                    "システム管理者による承認後にご利用いただけます。\n"
+                    "お手数ですがお待ちください。"
+                )
+                reply_token = event.get("replyToken", "")
+                access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+                await asyncio.to_thread(reply_mod.send_reply, reply_token, reply_text, access_token)
+                return
 
         text = event["message"]["text"]
         if text.strip() in _HELP_COMMANDS:
