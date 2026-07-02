@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -60,6 +61,18 @@ def client(monkeypatch):
             yield TestClient(app, raise_server_exceptions=True, follow_redirects=False)
 
 
+def _get_csrf_token(client: TestClient, url: str) -> str:
+    """Extract CSRF token from a form page."""
+    resp = client.get(url)
+    assert resp.status_code == 200
+    # Match both value="token"...name="csrf_token" and name="csrf_token"...value="token"
+    match = re.search(r'name="csrf_token"[^>]*value="([^"]*)"', resp.text)
+    if not match:
+        match = re.search(r'value="([^"]*)"[^>]*name="csrf_token"', resp.text)
+    assert match, f"CSRF token not found in response from {url}"
+    return match.group(1)
+
+
 # --- CSRF トークン生成と注入 --------------------------------------------------
 
 
@@ -74,7 +87,7 @@ def test_get_admin_page_includes_csrf_token(client):
 
 def test_get_records_page_includes_csrf_token(client):
     """記録一覧ページ（GET）には CSRF トークンが含まれる。"""
-    with patch("kotolog.db.crud.query_records", return_value=[]):
+    with patch("kotolog.db.crud.query_records", return_value=[_FAKE_RECORD]):
         resp = client.get(f"/admin/records?token={TOKEN}")
     assert resp.status_code == 200
     assert 'name="csrf_token"' in resp.text
@@ -97,8 +110,8 @@ def test_get_record_edit_form_includes_csrf_token(client):
 
 def test_get_users_page_includes_csrf_token(client):
     """ユーザー管理ページ（GET）には CSRF トークンが含まれる。"""
-    with patch("kotolog.db.crud.list_users", return_value=[]):
-        with patch("kotolog.db.crud.list_children", return_value=[]):
+    with patch("kotolog.db.crud.list_users", return_value=[_FAKE_USER]):
+        with patch("kotolog.db.crud.list_children", return_value=[_FAKE_CHILD]):
             resp = client.get(f"/admin/users?token={TOKEN}")
     assert resp.status_code == 200
     assert 'name="csrf_token"' in resp.text

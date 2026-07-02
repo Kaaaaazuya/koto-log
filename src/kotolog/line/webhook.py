@@ -43,13 +43,14 @@ app = FastAPI(lifespan=lifespan)
 # Session middleware for cookie-based authentication (Issue #28)
 # Use a strong secret key from environment or generate a random one
 _SESSION_SECRET = os.environ.get("SESSION_SECRET_KEY", secrets.token_urlsafe(32))
+_SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "true").lower() == "true"
 app.add_middleware(
     SessionMiddleware,
     secret_key=_SESSION_SECRET,
     session_cookie="kotolog_session",
     max_age=86400 * 7,  # 7 days
     path="/admin",
-    https_only=True,  # In production, enforce HTTPS
+    https_only=_SESSION_COOKIE_SECURE,
     same_site="strict",
 )
 

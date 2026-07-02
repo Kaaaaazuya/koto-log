@@ -6,6 +6,7 @@ AI・LiteLLM は一切経由しない（crud.* 直呼び）。
 
 from __future__ import annotations
 
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -40,6 +41,18 @@ def client(monkeypatch):
 
         # redirect を追わず 303 を直接検証できるようにする
         yield TestClient(app, raise_server_exceptions=True, follow_redirects=False)
+
+
+def _get_csrf_token(client: TestClient, url: str) -> str:
+    """Extract CSRF token from a form page."""
+    resp = client.get(url)
+    assert resp.status_code == 200
+    # Match both value="token"...name="csrf_token" and name="csrf_token"...value="token"
+    match = re.search(r'name="csrf_token"[^>]*value="([^"]*)"', resp.text)
+    if not match:
+        match = re.search(r'value="([^"]*)"[^>]*name="csrf_token"', resp.text)
+    assert match, f"CSRF token not found in response from {url}"
+    return match.group(1)
 
 
 # --- トークン保護 -----------------------------------------------------------
@@ -101,6 +114,7 @@ def test_new_form_renders(client):
 
 def test_create_inserts_with_jst_iso(client):
     with patch("kotolog.db.crud.insert_record", return_value=1) as ins:
+        csrf_token = _get_csrf_token(client, f"/admin/records/new?token={TOKEN}")
         resp = client.post(
             f"/admin/records?token={TOKEN}",
             data={
@@ -111,6 +125,7 @@ def test_create_inserts_with_jst_iso(client):
                 "started_at": "2026-06-26T21:30",
                 "ended_at": "",
                 "note": "memo",
+                "csrf_token": csrf_token,
             },
         )
     assert resp.status_code == 303
@@ -123,21 +138,28 @@ def test_create_inserts_with_jst_iso(client):
 
 
 def test_create_invalid_type_returns_400(client):
+    csrf_token = _get_csrf_token(client, f"/admin/records/new?token={TOKEN}")
     resp = client.post(
         f"/admin/records?token={TOKEN}",
-        data={"type": "bogus", "started_at": "2026-06-26T21:30"},
+        data={
+            "type": "bogus",
+            "started_at": "2026-06-26T21:30",
+            "csrf_token": csrf_token,
+        },
     )
     assert resp.status_code == 400
 
 
 def test_create_normalizes_sub_type(client):
     with patch("kotolog.db.crud.insert_record", return_value=1) as ins:
+        csrf_token = _get_csrf_token(client, f"/admin/records/new?token={TOKEN}")
         client.post(
             f"/admin/records?token={TOKEN}",
             data={
                 "type": "diaper",
                 "sub_type": "便",  # → うんち へ正規化
                 "started_at": "2026-06-26T10:00",
+                "csrf_token": csrf_token,
             },
         )
     assert ins.call_args.kwargs["sub_type"] == "うんち"
@@ -163,6 +185,8 @@ def test_edit_missing_returns_404(client):
 
 def test_update_calls_update_record(client):
     with patch("kotolog.db.crud.update_record", return_value=True) as upd:
+        with patch("kotolog.db.crud.get_record", return_value=_FAKE_RECORD):
+            csrf_token = _get_csrf_token(client, f"/admin/records/7/edit?token={TOKEN}")
         resp = client.post(
             f"/admin/records/7?token={TOKEN}",
             data={
@@ -173,6 +197,7 @@ def test_update_calls_update_record(client):
                 "started_at": "2026-06-26T22:00",
                 "ended_at": "",
                 "note": "",
+                "csrf_token": csrf_token,
             },
         )
     assert resp.status_code == 303
@@ -187,32 +212,42 @@ def test_update_calls_update_record(client):
 
 
 def test_create_invalid_date_returns_400(client):
+    csrf_token = _get_csrf_token(client, f"/admin/records/new?token={TOKEN}")
     resp = client.post(
         f"/admin/records?token={TOKEN}",
-        data={"type": "feeding", "started_at": "not-a-date"},
+        data={
+            "type": "feeding",
+            "started_at": "not-a-date",
+            "csrf_token": csrf_token,
+        },
     )
     assert resp.status_code == 400
 
 
 def test_create_ended_before_started_returns_400(client):
+    csrf_token = _get_csrf_token(client, f"/admin/records/new?token={TOKEN}")
     resp = client.post(
         f"/admin/records?token={TOKEN}",
         data={
             "type": "sleep",
             "started_at": "2026-06-26T10:00",
             "ended_at": "2026-06-26T09:00",
+            "csrf_token": csrf_token,
         },
     )
     assert resp.status_code == 400
 
 
 def test_update_ended_before_started_returns_400(client):
+    with patch("kotolog.db.crud.get_record", return_value=_FAKE_RECORD):
+        csrf_token = _get_csrf_token(client, f"/admin/records/7/edit?token={TOKEN}")
     resp = client.post(
         f"/admin/records/7?token={TOKEN}",
         data={
             "type": "sleep",
             "started_at": "2026-06-26T10:00",
             "ended_at": "2026-06-26T09:00",
+            "csrf_token": csrf_token,
         },
     )
     assert resp.status_code == 400
@@ -220,7 +255,9 @@ def test_update_ended_before_started_returns_400(client):
 
 def test_delete_calls_delete_record(client):
     with patch("kotolog.db.crud.delete_record", return_value=True) as dele:
-        resp = client.post(f"/admin/records/7/delete?token={TOKEN}")
+        with patch("kotolog.db.crud.query_records", return_value=[_FAKE_RECORD]):
+            csrf_token = _get_csrf_token(client, f"/admin/records?token={TOKEN}")
+        resp = client.post(f"/admin/records/7/delete?token={TOKEN}", data={"csrf_token": csrf_token})
     assert resp.status_code == 303
     assert resp.headers["location"] == f"/admin/records?token={TOKEN}&deleted=1"
     assert dele.call_args.args[1] == 7

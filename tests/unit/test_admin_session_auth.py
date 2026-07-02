@@ -9,6 +9,7 @@ Tests for:
 
 from __future__ import annotations
 
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -29,6 +30,18 @@ def client(monkeypatch):
         from kotolog.line.webhook import app
 
         yield TestClient(app, raise_server_exceptions=True, follow_redirects=False)
+
+
+def _get_csrf_token(client: TestClient, url: str) -> str:
+    """Extract CSRF token from a form page."""
+    resp = client.get(url)
+    assert resp.status_code == 200
+    # Match both value="token"...name="csrf_token" and name="csrf_token"...value="token"
+    match = re.search(r'name="csrf_token"[^>]*value="([^"]*)"', resp.text)
+    if not match:
+        match = re.search(r'value="([^"]*)"[^>]*name="csrf_token"', resp.text)
+    assert match, f"CSRF token not found in response from {url}"
+    return match.group(1)
 
 
 # --- POST /admin/login -------------------------------------------------------
@@ -72,7 +85,6 @@ def test_login_cookie_has_secure_flag(client):
     assert resp.status_code == 303
     # Check Set-Cookie header for Secure (in production)
     # In test environment might not be enforced but we should test the intent
-    set_cookie = resp.headers.get("set-cookie", "")
     # Note: In testing with TestClient, Secure might not be enforced
     # but implementation should include it
 
@@ -82,8 +94,8 @@ def test_login_cookie_has_samesite_strict(client):
     resp = client.post("/admin/login", data={"token": TOKEN})
     assert resp.status_code == 303
     # Check Set-Cookie header for SameSite=Strict
-    set_cookie = resp.headers.get("set-cookie", "")
-    assert "SameSite" in set_cookie
+    set_cookie = resp.headers.get("set-cookie", "").lower()
+    assert "samesite=strict" in set_cookie
 
 
 def test_login_empty_token_returns_403(client):
@@ -203,12 +215,15 @@ def test_admin_records_post_with_session(client):
     client.post("/admin/login", data={"token": TOKEN})
 
     with patch("kotolog.db.crud.insert_record", return_value=1):
+        # Get CSRF token from form
+        csrf_token = _get_csrf_token(client, "/admin/records/new")
         # POST without token, relying on session
         resp = client.post(
             "/admin/records",
             data={
                 "type": "feeding",
                 "started_at": "2026-06-26T21:30",
+                "csrf_token": csrf_token,
             },
         )
     assert resp.status_code == 303
@@ -217,11 +232,14 @@ def test_admin_records_post_with_session(client):
 def test_admin_records_post_with_query_token_still_works(client):
     """POST /admin/records with query token should still work (backward compatibility)."""
     with patch("kotolog.db.crud.insert_record", return_value=1):
+        # Get CSRF token from form
+        csrf_token = _get_csrf_token(client, f"/admin/records/new?token={TOKEN}")
         resp = client.post(
             f"/admin/records?token={TOKEN}",
             data={
                 "type": "feeding",
                 "started_at": "2026-06-26T21:30",
+                "csrf_token": csrf_token,
             },
         )
     assert resp.status_code == 303
