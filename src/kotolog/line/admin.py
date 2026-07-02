@@ -370,13 +370,24 @@ async def admin_users(request: Request, token: str | None = None, saved: bool = 
     return _templates.TemplateResponse(
         request,
         "admin_users.html",
-        {"users": users, "children": children, "token": token or "", "csrf_token": csrf_token, "saved": saved, "deleted": deleted},
+        {
+            "users": users,
+            "children": children,
+            "token": token or "",
+            "csrf_token": csrf_token,
+            "saved": saved,
+            "deleted": deleted,
+        },
     )
 
 
 @router.post("/admin/users/{line_user_id}/nickname")
 async def admin_user_nickname(
-    request: Request, line_user_id: str, token: str | None = None, nickname: str = Form(""), csrf_token: str = Form(default="")
+    request: Request,
+    line_user_id: str,
+    token: str | None = None,
+    nickname: str = Form(""),
+    csrf_token: str = Form(default=""),
 ):
     _check_token(token, request)
     # Issue #32: Validate CSRF token
@@ -388,7 +399,11 @@ async def admin_user_nickname(
 
 @router.post("/admin/users/{line_user_id}/notify")
 async def admin_user_notify(
-    request: Request, line_user_id: str, token: str | None = None, enabled: str = Form("1"), csrf_token: str = Form(default="")
+    request: Request,
+    line_user_id: str,
+    token: str | None = None,
+    enabled: str = Form("1"),
+    csrf_token: str = Form(default=""),
 ):
     _check_token(token, request)
     # Issue #32: Validate CSRF token
@@ -400,7 +415,11 @@ async def admin_user_notify(
 
 @router.post("/admin/users/{line_user_id}/child")
 async def admin_user_child(
-    request: Request, line_user_id: str, token: str | None = None, child_id: str = Form(""), csrf_token: str = Form(default="")
+    request: Request,
+    line_user_id: str,
+    token: str | None = None,
+    child_id: str = Form(""),
+    csrf_token: str = Form(default=""),
 ):
     _check_token(token, request)
     # Issue #32: Validate CSRF token
