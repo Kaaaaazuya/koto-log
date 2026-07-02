@@ -218,9 +218,7 @@ def reject_user(conn: sqlite3.Connection, line_user_id: str) -> None:
 
 def is_user_approved(conn: sqlite3.Connection, line_user_id: str) -> bool:
     """ユーザーが承認されているかチェックする。見つからない場合は False。"""
-    row = conn.execute(
-        "SELECT approved FROM users WHERE line_user_id = ?", (line_user_id,)
-    ).fetchone()
+    row = conn.execute("SELECT approved FROM users WHERE line_user_id = ?", (line_user_id,)).fetchone()
     return row is not None and row["approved"] == 1
 
 
@@ -233,9 +231,7 @@ def get_user(conn: sqlite3.Connection, line_user_id: str) -> sqlite3.Row | None:
 
 def list_pending_approvals(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """未承認（approved=0）のユーザーを返す。作成日時昇順。"""
-    return conn.execute(
-        "SELECT * FROM users WHERE approved = 0 ORDER BY created_at ASC"
-    ).fetchall()
+    return conn.execute("SELECT * FROM users WHERE approved = 0 ORDER BY created_at ASC").fetchall()
 
 
 def insert_record(

@@ -153,6 +153,7 @@ def test_post_admin_with_valid_csrf_token_succeeds(client):
     assert resp_get.status_code == 200
     # response.text から CSRF トークンを抽出
     import re
+
     match = re.search(r'value="([^"]+)".*?name="csrf_token"', resp_get.text)
     if not match:
         # 異なる順序の場合
