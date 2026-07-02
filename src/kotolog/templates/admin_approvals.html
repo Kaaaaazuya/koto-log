@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ユーザー承認 – koto-log</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333; padding: 24px; }
+    h1 { font-size: 1.4rem; margin-bottom: 8px; color: #555; }
+    .back { font-size: .85rem; color: #06c755; text-decoration: none; margin-bottom: 24px; display: inline-block; }
+    .card { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #f0f0f0; font-size: .9rem; }
+    th { color: #888; font-weight: 500; font-size: .8rem; }
+    tr:last-child td { border-bottom: none; }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 10px; font-size: .75rem; }
+    .badge-pending { background: #fff3cd; color: #856404; }
+    .btn { display: inline-block; padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: .85rem; text-decoration: none; margin-right: 6px; }
+    .btn-primary  { background: #06c755; color: #fff; }
+    .btn-danger   { background: #ff4444; color: #fff; }
+    .btn-secondary{ background: #eee; color: #555; }
+    .btn:hover { opacity: .85; }
+    .inline-form { display: inline; }
+    .notice { padding: 10px 14px; border-radius: 6px; font-size: .9rem; margin-bottom: 16px; }
+    .notice-ok  { background: #e6f4ea; color: #2d7a3a; }
+    .empty { color: #aaa; font-size: .9rem; padding: 20px 0; text-align: center; }
+    .meta { color: #888; font-size: .8rem; }
+  </style>
+</head>
+<body>
+  <a class="back" href="/admin?token={{ token }}">← 管理トップ</a>
+  <h1 style="margin-bottom:24px;">ユーザー承認</h1>
+
+  {% if approved %}
+  <div class="notice notice-ok">ユーザーを承認しました。</div>
+  {% endif %}
+
+  <div class="card">
+    {% if pending_users %}
+    <p style="margin-bottom: 16px; color: #666; font-size: .9rem;">
+      未承認ユーザーが {{ pending_users|length }} 件あります。
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>LINE ユーザーID</th>
+          <th>ニックネーム</th>
+          <th>登録日時</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in pending_users %}
+        <tr>
+          <td style="font-size:.78rem;color:#888;font-family:monospace;">{{ u.line_user_id }}</td>
+          <td>
+            <span class="badge badge-pending">未承認</span>
+            {% if u.nickname %}
+            <span style="margin-left: 8px;">{{ u.nickname }}</span>
+            {% endif %}
+          </td>
+          <td class="meta">{{ u.created_at }}</td>
+          <td>
+            <form method="POST" action="/admin/approvals/{{ u.line_user_id }}/approve?token={{ token }}" class="inline-form" style="display: inline;">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn btn-primary">承認</button>
+            </form>
+            <form method="POST" action="/admin/approvals/{{ u.line_user_id }}/reject?token={{ token }}" class="inline-form" style="display: inline;"
+                  onsubmit="return confirm('{{ u.nickname or u.line_user_id }} を却下しますか？')">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn btn-danger">却下</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">承認待ちのユーザーがいません。</p>
+    {% endif %}
+  </div>
+</body>
+</html>

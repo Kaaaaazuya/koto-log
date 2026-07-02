@@ -51,9 +51,19 @@ def _M0003_CHILD_SEX(conn) -> None:
         conn.execute("ALTER TABLE children ADD COLUMN sex TEXT CHECK (sex IN ('male', 'female'))")
 
 
+# 0004: users.approved カラム追加（Issue #29: 外部ユーザー承認フロー）。
+# デフォルト値 0（False）で新規ユーザーは未承認から開始。既存ユーザーは承認済みと見なす。
+def _M0004_USER_APPROVAL(conn) -> None:
+    cursor = conn.execute("PRAGMA table_info(users)")
+    columns = [row["name"] for row in cursor.fetchall()]
+    if "approved" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN approved INTEGER NOT NULL DEFAULT 0")
+
+
 MIGRATIONS: list[tuple[int, str | Callable]] = [
     (2, _M0002_USERS),
     (3, _M0003_CHILD_SEX),
+    (4, _M0004_USER_APPROVAL),
 ]
 
 # 既存DB判定に使うコアテーブル（どれかがあれば「既存DB」とみなす）

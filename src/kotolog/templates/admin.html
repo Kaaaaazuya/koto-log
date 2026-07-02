@@ -37,6 +37,7 @@
   <div class="card">
     <h2>設定</h2>
     <form method="POST" action="/admin?token={{ token }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
       <label>出産予定日</label>
       <input type="date" name="due_date" value="{{ due_date }}">
 
@@ -70,6 +71,7 @@
       今すぐ朝のカウントダウンメッセージを送信します。予定日と LINE ユーザーID が設定済みの場合のみ送信されます。
     </p>
     <form method="POST" action="/admin/test-push?token={{ token }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="btn btn-secondary">今すぐ送信</button>
     </form>
   </div>
