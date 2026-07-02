@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from importlib import resources
@@ -67,10 +68,11 @@ def _check_token(token: str | None) -> None:
     """Default-deny authentication: always require a valid token.
 
     Issue #27: Dashboard MUST require authentication regardless of environment.
+    Uses secrets.compare_digest for timing-attack resistant token comparison.
     """
     expected = os.environ.get("KOTOLOG_DASHBOARD_TOKEN", "")
     # Default-deny: reject unless token is explicitly configured and matches
-    if not expected or token != expected:
+    if not expected or not token or not secrets.compare_digest(token, expected):
         raise HTTPException(status_code=403, detail="Invalid token")
 
 
