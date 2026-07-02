@@ -12,8 +12,6 @@ from __future__ import annotations
 
 from kotolog.db import crud
 
-
-
 # ---------------------------------------------------------------------------
 # User approval status (approved column)
 # ---------------------------------------------------------------------------
