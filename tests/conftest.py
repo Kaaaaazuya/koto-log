@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import os
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -18,6 +19,10 @@ from kotolog.config import Config
 from kotolog.db import crud
 from kotolog.db.connection import connect
 from kotolog.tools.executor import ToolExecutor
+
+# Set test environment variables
+os.environ["KOTOLOG_APPROVE_ALL_USERS"] = "true"
+os.environ["SESSION_COOKIE_SECURE"] = "false"
 
 JST = timezone(timedelta(hours=9))
 # 全テスト共通の基準時刻。相対表現や period 解決を決定論的にする。

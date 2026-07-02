@@ -84,6 +84,10 @@ def webhook_client(monkeypatch, conn, child_id):
     def mock_send_reply(reply_token: str, text: str, access_token: str) -> None:
         sent.append({"reply_token": reply_token, "text": text})
 
+    # Approve test user by default (Issue #29)
+    crud.upsert_user(conn, "U_test")
+    crud.approve_user(conn, "U_test")
+
     monkeypatch.setattr(wh, "_agent", agent)
     monkeypatch.setattr(reply_mod, "send_reply", mock_send_reply)
     monkeypatch.setenv("LINE_CHANNEL_SECRET", CHANNEL_SECRET)
@@ -167,6 +171,7 @@ def test_switch_child_command_updates_current(monkeypatch, conn, child_id):
 
     hanako = crud_mod.create_child(conn, "はなこ")
     crud_mod.upsert_user(conn, "U001")
+    crud_mod.approve_user(conn, "U001")
 
     llm = FakeLLM([])
     agent = Agent(client=llm, conn=conn, _now=lambda: NOW)

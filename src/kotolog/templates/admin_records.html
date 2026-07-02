@@ -73,6 +73,7 @@
               <a class="btn btn-secondary" href="/admin/records/{{ r.id }}/edit?token={{ token }}">編集</a>
               <form method="POST" action="/admin/records/{{ r.id }}/delete?token={{ token }}"
                     onsubmit="return confirm('この記録を削除しますか？');" style="margin:0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <button type="submit" class="btn btn-danger">削除</button>
               </form>
             </div>
