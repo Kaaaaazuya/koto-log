@@ -75,6 +75,7 @@ def webhook_client(monkeypatch, conn, child_id):
     """in-memory DB + FakeLLM + Reply モックで組んだ TestClient。"""
     import kotolog.line.reply as reply_mod
     import kotolog.line.webhook as wh
+    from kotolog.db import crud
 
     llm = FakeLLM([make_resp(content="記録しました。"), make_resp(content="記録しました。")])
     agent = Agent(client=llm, conn=conn, _now=lambda: NOW)
@@ -88,6 +89,11 @@ def webhook_client(monkeypatch, conn, child_id):
     monkeypatch.setattr(reply_mod, "send_reply", mock_send_reply)
     monkeypatch.setenv("LINE_CHANNEL_SECRET", CHANNEL_SECRET)
     monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", ACCESS_TOKEN)
+
+    # Issue #29: Approve test user by default (tests create users, they should be approved)
+    # Create and approve the test user used in tests
+    crud.upsert_user(conn, "U_test")
+    crud.approve_user(conn, "U_test")
 
     return TestClient(wh.app, raise_server_exceptions=True), sent
 
@@ -167,6 +173,8 @@ def test_switch_child_command_updates_current(monkeypatch, conn, child_id):
 
     hanako = crud_mod.create_child(conn, "はなこ")
     crud_mod.upsert_user(conn, "U001")
+    # Issue #29: Approve user so they can use bot functionality
+    crud_mod.approve_user(conn, "U001")
 
     llm = FakeLLM([])
     agent = Agent(client=llm, conn=conn, _now=lambda: NOW)
