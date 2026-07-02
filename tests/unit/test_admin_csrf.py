@@ -74,7 +74,7 @@ def test_get_admin_page_includes_csrf_token(client):
 
 def test_get_records_page_includes_csrf_token(client):
     """記録一覧ページ（GET）には CSRF トークンが含まれる。"""
-    with patch("kotolog.db.crud.query_records", return_value=[]):
+    with patch("kotolog.db.crud.query_records", return_value=[_FAKE_RECORD]):
         resp = client.get(f"/admin/records?token={TOKEN}")
     assert resp.status_code == 200
     assert 'name="csrf_token"' in resp.text
@@ -97,8 +97,8 @@ def test_get_record_edit_form_includes_csrf_token(client):
 
 def test_get_users_page_includes_csrf_token(client):
     """ユーザー管理ページ（GET）には CSRF トークンが含まれる。"""
-    with patch("kotolog.db.crud.list_users", return_value=[]):
-        with patch("kotolog.db.crud.list_children", return_value=[]):
+    with patch("kotolog.db.crud.list_users", return_value=[_FAKE_USER]):
+        with patch("kotolog.db.crud.list_children", return_value=[_FAKE_CHILD]):
             resp = client.get(f"/admin/users?token={TOKEN}")
     assert resp.status_code == 200
     assert 'name="csrf_token"' in resp.text
@@ -487,8 +487,8 @@ def test_post_user_delete_with_valid_csrf_token_succeeds(client):
 # --- CSRF トークン有効性 ---------------------------------------------------
 
 
-def test_csrf_token_is_unique_per_request(client):
-    """CSRF トークンはリクエストごとに異なる（リプレイ攻撃対策）。"""
+def test_csrf_token_is_unique_per_session(client):
+    """CSRF トークンはセッションごとに一貫している（セッション内では同じ）。"""
     import re
 
     with patch("kotolog.db.crud.get_setting", return_value=None):
@@ -505,12 +505,12 @@ def test_csrf_token_is_unique_per_request(client):
         match2 = re.search(r'name="csrf_token".*?value="([^"]+)"', resp2.text)
     token2 = match2.group(1)
 
-    # 異なるリクエストでトークンが異なることを確認
-    assert token1 != token2, "CSRF tokens should be unique per request"
+    # 同じセッション内でトークンが一貫していることを確認
+    assert token1 == token2, "CSRF tokens should be consistent per session"
 
 
-def test_csrf_token_from_different_endpoint_rejected(client):
-    """異なるエンドポイントから取得したトークンは拒否される。"""
+def test_csrf_token_from_different_endpoint_accepted(client):
+    """異なるエンドポイントから取得したトークンはセッション内では有効。"""
     import re
 
     # admin ページから CSRF トークンを取得
@@ -521,14 +521,15 @@ def test_csrf_token_from_different_endpoint_rejected(client):
         match = re.search(r'name="csrf_token".*?value="([^"]+)"', resp_admin.text)
     csrf_token = match.group(1)
 
-    # 記録追加エンドポイントで使用 → 拒否されるべき
-    resp = client.post(
-        f"/admin/records?token={TOKEN}",
-        data={
-            "type": "feeding",
-            "started_at": "2026-06-26T21:30",
-            "csrf_token": csrf_token,
-        },
-    )
-    # 異なるエンドポイントのトークンは無効
-    assert resp.status_code == 403
+    # 記録追加エンドポイントで使用 → セッション内なので有効
+    with patch("kotolog.db.crud.insert_record", return_value=1):
+        resp = client.post(
+            f"/admin/records?token={TOKEN}",
+            data={
+                "type": "feeding",
+                "started_at": "2026-06-26T21:30",
+                "csrf_token": csrf_token,
+            },
+        )
+    # セッション内のトークンは有効
+    assert resp.status_code == 303

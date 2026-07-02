@@ -81,9 +81,9 @@ def test_login_cookie_has_samesite_strict(client):
     """Session cookie should have SameSite=Strict."""
     resp = client.post("/admin/login", data={"token": TOKEN})
     assert resp.status_code == 303
-    # Check Set-Cookie header for SameSite=Strict
-    set_cookie = resp.headers.get("set-cookie", "")
-    assert "SameSite" in set_cookie
+    # Check Set-Cookie header for SameSite=Strict (case-insensitive)
+    set_cookie = resp.headers.get("set-cookie", "").lower()
+    assert "samesite=strict" in set_cookie
 
 
 def test_login_empty_token_returns_403(client):
@@ -199,8 +199,18 @@ def test_admin_records_with_query_token_still_works(client):
 
 def test_admin_records_post_with_session(client):
     """POST /admin/records with valid session should work."""
+    import re
+
     # Login
     client.post("/admin/login", data={"token": TOKEN})
+
+    # Get CSRF token from the new record form
+    resp_form = client.get("/admin/records/new")
+    assert resp_form.status_code == 200
+    match = re.search(r'value="([^"]+)".*?name="csrf_token"', resp_form.text)
+    if not match:
+        match = re.search(r'name="csrf_token".*?value="([^"]+)"', resp_form.text)
+    csrf_token = match.group(1)
 
     with patch("kotolog.db.crud.insert_record", return_value=1):
         # POST without token, relying on session
@@ -209,6 +219,7 @@ def test_admin_records_post_with_session(client):
             data={
                 "type": "feeding",
                 "started_at": "2026-06-26T21:30",
+                "csrf_token": csrf_token,
             },
         )
     assert resp.status_code == 303
@@ -216,12 +227,23 @@ def test_admin_records_post_with_session(client):
 
 def test_admin_records_post_with_query_token_still_works(client):
     """POST /admin/records with query token should still work (backward compatibility)."""
+    import re
+
+    # Get CSRF token from the new record form with token parameter
+    resp_form = client.get(f"/admin/records/new?token={TOKEN}")
+    assert resp_form.status_code == 200
+    match = re.search(r'value="([^"]+)".*?name="csrf_token"', resp_form.text)
+    if not match:
+        match = re.search(r'name="csrf_token".*?value="([^"]+)"', resp_form.text)
+    csrf_token = match.group(1)
+
     with patch("kotolog.db.crud.insert_record", return_value=1):
         resp = client.post(
             f"/admin/records?token={TOKEN}",
             data={
                 "type": "feeding",
                 "started_at": "2026-06-26T21:30",
+                "csrf_token": csrf_token,
             },
         )
     assert resp.status_code == 303

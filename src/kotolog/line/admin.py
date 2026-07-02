@@ -11,7 +11,6 @@ from pathlib import Path
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import Field
 
 from kotolog.db import crud
 from kotolog.line.csrf import check_csrf_token, get_or_create_csrf_token
@@ -98,7 +97,7 @@ async def admin_login(request: Request):
 @router.post("/admin/login")
 async def admin_login_post(
     request: Request,
-    token: str = Form(...),
+    token: str = Form(default=""),
 ):
     """Validate token and set session cookie.
 
