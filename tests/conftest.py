@@ -8,11 +8,16 @@
 from __future__ import annotations
 
 import json
+import os
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
+
+# Set test environment variables for session and user approval
+os.environ["KOTOLOG_APPROVE_ALL_USERS"] = "true"
+os.environ["SESSION_COOKIE_SECURE"] = "false"
 
 from kotolog.config import Config
 from kotolog.db import crud

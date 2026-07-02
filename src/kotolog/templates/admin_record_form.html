@@ -26,6 +26,7 @@
 
   <div class="card">
     <form method="POST" action="{{ action }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label>種別 <span style="color:#c0392b">*</span></label>
       <select name="type" required>
         {% for key, label in type_labels.items() %}
