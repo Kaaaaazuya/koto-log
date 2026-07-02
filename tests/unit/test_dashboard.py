@@ -133,8 +133,8 @@ def test_dashboard_sleep_summary_str(client):
     assert "2h" in resp.text
 
 
-def test_no_token_env_allows_access(monkeypatch):
-    """KOTOLOG_DASHBOARD_TOKEN 未設定時はトークンなしでアクセス可。"""
+def test_no_token_env_denies_access(monkeypatch):
+    """Issue #27: Default-deny means access denied even when KOTOLOG_DASHBOARD_TOKEN not set."""
     monkeypatch.setenv("LINE_CHANNEL_SECRET", "secret")
     monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "token")
     monkeypatch.delenv("KOTOLOG_DASHBOARD_TOKEN", raising=False)
@@ -146,4 +146,4 @@ def test_no_token_env_allows_access(monkeypatch):
 
             client = TestClient(app, raise_server_exceptions=True)
             resp = client.get("/dashboard")
-    assert resp.status_code == 200
+    assert resp.status_code == 403

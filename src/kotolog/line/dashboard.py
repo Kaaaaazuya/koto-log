@@ -64,8 +64,13 @@ def _timeline_label(r: dict) -> str:
 
 
 def _check_token(token: str | None) -> None:
+    """Default-deny authentication: always require a valid token.
+
+    Issue #27: Dashboard MUST require authentication regardless of environment.
+    """
     expected = os.environ.get("KOTOLOG_DASHBOARD_TOKEN", "")
-    if expected and token != expected:
+    # Default-deny: reject unless token is explicitly configured and matches
+    if not expected or token != expected:
         raise HTTPException(status_code=403, detail="Invalid token")
 
 
