@@ -69,7 +69,7 @@ def test_get_admin_page_includes_csrf_token(client):
         resp = client.get(f"/admin?token={TOKEN}")
     assert resp.status_code == 200
     # CSRF トークンがフォームに含まれている
-    assert 'name="_csrf_token"' in resp.text
+    assert 'name="csrf_token"' in resp.text
 
 
 def test_get_records_page_includes_csrf_token(client):
@@ -77,14 +77,14 @@ def test_get_records_page_includes_csrf_token(client):
     with patch("kotolog.db.crud.query_records", return_value=[]):
         resp = client.get(f"/admin/records?token={TOKEN}")
     assert resp.status_code == 200
-    assert 'name="_csrf_token"' in resp.text
+    assert 'name="csrf_token"' in resp.text
 
 
 def test_get_record_new_form_includes_csrf_token(client):
     """記録新規追加フォーム（GET）には CSRF トークンが含まれる。"""
     resp = client.get(f"/admin/records/new?token={TOKEN}")
     assert resp.status_code == 200
-    assert 'name="_csrf_token"' in resp.text
+    assert 'name="csrf_token"' in resp.text
 
 
 def test_get_record_edit_form_includes_csrf_token(client):
@@ -92,7 +92,7 @@ def test_get_record_edit_form_includes_csrf_token(client):
     with patch("kotolog.db.crud.get_record", return_value=_FAKE_RECORD):
         resp = client.get(f"/admin/records/7/edit?token={TOKEN}")
     assert resp.status_code == 200
-    assert 'name="_csrf_token"' in resp.text
+    assert 'name="csrf_token"' in resp.text
 
 
 def test_get_users_page_includes_csrf_token(client):
@@ -101,7 +101,7 @@ def test_get_users_page_includes_csrf_token(client):
         with patch("kotolog.db.crud.list_children", return_value=[]):
             resp = client.get(f"/admin/users?token={TOKEN}")
     assert resp.status_code == 200
-    assert 'name="_csrf_token"' in resp.text
+    assert 'name="csrf_token"' in resp.text
 
 
 # --- POST エンドポイント: CSRF トークン必須 ---------------------------------
@@ -126,7 +126,7 @@ def test_post_admin_with_invalid_csrf_token_returns_403(client):
         data={
             "due_date": "2026-06-30",
             "line_user_id": "U123",
-            "_csrf_token": "invalid-token",
+            "csrf_token": "invalid-token",
         },
     )
     assert resp.status_code == 403
@@ -140,10 +140,10 @@ def test_post_admin_with_valid_csrf_token_succeeds(client):
     assert resp_get.status_code == 200
     # response.text から CSRF トークンを抽出
     import re
-    match = re.search(r'value="([^"]+)".*?name="_csrf_token"', resp_get.text)
+    match = re.search(r'value="([^"]+)".*?name="csrf_token"', resp_get.text)
     if not match:
         # 異なる順序の場合
-        match = re.search(r'name="_csrf_token".*?value="([^"]+)"', resp_get.text)
+        match = re.search(r'name="csrf_token".*?value="([^"]+)"', resp_get.text)
     assert match, "CSRF token not found in response"
     csrf_token = match.group(1)
 
@@ -154,7 +154,7 @@ def test_post_admin_with_valid_csrf_token_succeeds(client):
             data={
                 "due_date": "2026-06-30",
                 "line_user_id": "U123",
-                "_csrf_token": csrf_token,
+                "csrf_token": csrf_token,
             },
         )
     assert resp_post.status_code == 303
@@ -171,7 +171,7 @@ def test_post_test_push_with_invalid_csrf_token_returns_403(client):
     """POST /admin/test-push: 無効な CSRF トークンで 403。"""
     resp = client.post(
         f"/admin/test-push?token={TOKEN}",
-        data={"_csrf_token": "invalid-token"},
+        data={"csrf_token": "invalid-token"},
     )
     assert resp.status_code == 403
 
@@ -183,16 +183,16 @@ def test_post_test_push_with_valid_csrf_token_succeeds(client):
     # GET ページから CSRF トークンを取得
     with patch("kotolog.db.crud.get_setting", return_value=None):
         resp_get = client.get(f"/admin?token={TOKEN}")
-    match = re.search(r'value="([^"]+)".*?name="_csrf_token"', resp_get.text)
+    match = re.search(r'value="([^"]+)".*?name="csrf_token"', resp_get.text)
     if not match:
-        match = re.search(r'name="_csrf_token".*?value="([^"]+)"', resp_get.text)
+        match = re.search(r'name="csrf_token".*?value="([^"]+)"', resp_get.text)
     csrf_token = match.group(1)
 
     # POST フォームに CSRF トークンを含める
     with patch("asyncio.to_thread", return_value=None):
         resp_post = client.post(
             f"/admin/test-push?token={TOKEN}",
-            data={"_csrf_token": csrf_token},
+            data={"csrf_token": csrf_token},
         )
     assert resp_post.status_code == 303
 
@@ -216,7 +216,7 @@ def test_post_record_create_with_invalid_csrf_token_returns_403(client):
         data={
             "type": "feeding",
             "started_at": "2026-06-26T21:30",
-            "_csrf_token": "invalid-token",
+            "csrf_token": "invalid-token",
         },
     )
     assert resp.status_code == 403
@@ -228,9 +228,9 @@ def test_post_record_create_with_valid_csrf_token_succeeds(client):
 
     # GET フォームから CSRF トークンを取得
     resp_get = client.get(f"/admin/records/new?token={TOKEN}")
-    match = re.search(r'value="([^"]+)".*?name="_csrf_token"', resp_get.text)
+    match = re.search(r'value="([^"]+)".*?name="csrf_token"', resp_get.text)
     if not match:
-        match = re.search(r'name="_csrf_token".*?value="([^"]+)"', resp_get.text)
+        match = re.search(r'name="csrf_token".*?value="([^"]+)"', resp_get.text)
     csrf_token = match.group(1)
 
     # POST フォームに CSRF トークンを含める
@@ -245,7 +245,7 @@ def test_post_record_create_with_valid_csrf_token_succeeds(client):
                 "started_at": "2026-06-26T21:30",
                 "ended_at": "",
                 "note": "memo",
-                "_csrf_token": csrf_token,
+                "csrf_token": csrf_token,
             },
         )
     assert resp_post.status_code == 303
@@ -270,7 +270,7 @@ def test_post_record_update_with_invalid_csrf_token_returns_403(client):
         data={
             "type": "feeding",
             "started_at": "2026-06-26T21:30",
-            "_csrf_token": "invalid-token",
+            "csrf_token": "invalid-token",
         },
     )
     assert resp.status_code == 403
@@ -283,9 +283,9 @@ def test_post_record_update_with_valid_csrf_token_succeeds(client):
     # GET フォームから CSRF トークンを取得
     with patch("kotolog.db.crud.get_record", return_value=_FAKE_RECORD):
         resp_get = client.get(f"/admin/records/7/edit?token={TOKEN}")
-    match = re.search(r'value="([^"]+)".*?name="_csrf_token"', resp_get.text)
+    match = re.search(r'value="([^"]+)".*?name="csrf_token"', resp_get.text)
     if not match:
-        match = re.search(r'name="_csrf_token".*?value="([^"]+)"', resp_get.text)
+        match = re.search(r'name="csrf_token".*?value="([^"]+)"', resp_get.text)
     csrf_token = match.group(1)
 
     # POST フォームに CSRF トークンを含める
@@ -300,7 +300,7 @@ def test_post_record_update_with_valid_csrf_token_succeeds(client):
                 "started_at": "2026-06-26T22:00",
                 "ended_at": "",
                 "note": "",
-                "_csrf_token": csrf_token,
+                "csrf_token": csrf_token,
             },
         )
     assert resp_post.status_code == 303
@@ -316,7 +316,7 @@ def test_post_record_delete_with_invalid_csrf_token_returns_403(client):
     """POST /admin/records/{id}/delete（記録削除）: 無効な CSRF トークンで 403。"""
     resp = client.post(
         f"/admin/records/7/delete?token={TOKEN}",
-        data={"_csrf_token": "invalid-token"},
+        data={"csrf_token": "invalid-token"},
     )
     assert resp.status_code == 403
 
@@ -328,16 +328,16 @@ def test_post_record_delete_with_valid_csrf_token_succeeds(client):
     # GET 一覧ページから CSRF トークンを取得
     with patch("kotolog.db.crud.query_records", return_value=[_FAKE_RECORD]):
         resp_get = client.get(f"/admin/records?token={TOKEN}")
-    match = re.search(r'value="([^"]+)".*?name="_csrf_token"', resp_get.text)
+    match = re.search(r'value="([^"]+)".*?name="csrf_token"', resp_get.text)
     if not match:
-        match = re.search(r'name="_csrf_token".*?value="([^"]+)"', resp_get.text)
+        match = re.search(r'name="csrf_token".*?value="([^"]+)"', resp_get.text)
     csrf_token = match.group(1)
 
     # POST フォームに CSRF トークンを含める
     with patch("kotolog.db.crud.delete_record", return_value=True):
         resp_post = client.post(
             f"/admin/records/7/delete?token={TOKEN}",
-            data={"_csrf_token": csrf_token},
+            data={"csrf_token": csrf_token},
         )
     assert resp_post.status_code == 303
 
@@ -357,7 +357,7 @@ def test_post_user_nickname_with_invalid_csrf_token_returns_403(client):
         f"/admin/users/U123/nickname?token={TOKEN}",
         data={
             "nickname": "Alice",
-            "_csrf_token": "invalid-token",
+            "csrf_token": "invalid-token",
         },
     )
     assert resp.status_code == 403
@@ -371,9 +371,9 @@ def test_post_user_nickname_with_valid_csrf_token_succeeds(client):
     with patch("kotolog.db.crud.list_users", return_value=[_FAKE_USER]):
         with patch("kotolog.db.crud.list_children", return_value=[_FAKE_CHILD]):
             resp_get = client.get(f"/admin/users?token={TOKEN}")
-    match = re.search(r'value="([^"]+)".*?name="_csrf_token"', resp_get.text)
+    match = re.search(r'value="([^"]+)".*?name="csrf_token"', resp_get.text)
     if not match:
-        match = re.search(r'name="_csrf_token".*?value="([^"]+)"', resp_get.text)
+        match = re.search(r'name="csrf_token".*?value="([^"]+)"', resp_get.text)
     csrf_token = match.group(1)
 
     # POST フォームに CSRF トークンを含める
@@ -382,7 +382,7 @@ def test_post_user_nickname_with_valid_csrf_token_succeeds(client):
             f"/admin/users/U123/nickname?token={TOKEN}",
             data={
                 "nickname": "Alice",
-                "_csrf_token": csrf_token,
+                "csrf_token": csrf_token,
             },
         )
     assert resp_post.status_code == 303
@@ -405,9 +405,9 @@ def test_post_user_notify_with_valid_csrf_token_succeeds(client):
     with patch("kotolog.db.crud.list_users", return_value=[_FAKE_USER]):
         with patch("kotolog.db.crud.list_children", return_value=[_FAKE_CHILD]):
             resp_get = client.get(f"/admin/users?token={TOKEN}")
-    match = re.search(r'value="([^"]+)".*?name="_csrf_token"', resp_get.text)
+    match = re.search(r'value="([^"]+)".*?name="csrf_token"', resp_get.text)
     if not match:
-        match = re.search(r'name="_csrf_token".*?value="([^"]+)"', resp_get.text)
+        match = re.search(r'name="csrf_token".*?value="([^"]+)"', resp_get.text)
     csrf_token = match.group(1)
 
     # POST フォームに CSRF トークンを含める
@@ -416,7 +416,7 @@ def test_post_user_notify_with_valid_csrf_token_succeeds(client):
             f"/admin/users/U123/notify?token={TOKEN}",
             data={
                 "enabled": "0",
-                "_csrf_token": csrf_token,
+                "csrf_token": csrf_token,
             },
         )
     assert resp_post.status_code == 303
@@ -439,9 +439,9 @@ def test_post_user_child_with_valid_csrf_token_succeeds(client):
     with patch("kotolog.db.crud.list_users", return_value=[_FAKE_USER]):
         with patch("kotolog.db.crud.list_children", return_value=[_FAKE_CHILD]):
             resp_get = client.get(f"/admin/users?token={TOKEN}")
-    match = re.search(r'value="([^"]+)".*?name="_csrf_token"', resp_get.text)
+    match = re.search(r'value="([^"]+)".*?name="csrf_token"', resp_get.text)
     if not match:
-        match = re.search(r'name="_csrf_token".*?value="([^"]+)"', resp_get.text)
+        match = re.search(r'name="csrf_token".*?value="([^"]+)"', resp_get.text)
     csrf_token = match.group(1)
 
     # POST フォームに CSRF トークンを含める
@@ -450,7 +450,7 @@ def test_post_user_child_with_valid_csrf_token_succeeds(client):
             f"/admin/users/U123/child?token={TOKEN}",
             data={
                 "child_id": "1",
-                "_csrf_token": csrf_token,
+                "csrf_token": csrf_token,
             },
         )
     assert resp_post.status_code == 303
@@ -470,16 +470,16 @@ def test_post_user_delete_with_valid_csrf_token_succeeds(client):
     with patch("kotolog.db.crud.list_users", return_value=[_FAKE_USER]):
         with patch("kotolog.db.crud.list_children", return_value=[_FAKE_CHILD]):
             resp_get = client.get(f"/admin/users?token={TOKEN}")
-    match = re.search(r'value="([^"]+)".*?name="_csrf_token"', resp_get.text)
+    match = re.search(r'value="([^"]+)".*?name="csrf_token"', resp_get.text)
     if not match:
-        match = re.search(r'name="_csrf_token".*?value="([^"]+)"', resp_get.text)
+        match = re.search(r'name="csrf_token".*?value="([^"]+)"', resp_get.text)
     csrf_token = match.group(1)
 
     # POST フォームに CSRF トークンを含める
     with patch("kotolog.db.crud.delete_user", return_value=None):
         resp_post = client.post(
             f"/admin/users/U123/delete?token={TOKEN}",
-            data={"_csrf_token": csrf_token},
+            data={"csrf_token": csrf_token},
         )
     assert resp_post.status_code == 303
 
@@ -495,14 +495,14 @@ def test_csrf_token_is_unique_per_request(client):
         resp1 = client.get(f"/admin?token={TOKEN}")
         resp2 = client.get(f"/admin?token={TOKEN}")
 
-    match1 = re.search(r'value="([^"]+)".*?name="_csrf_token"', resp1.text)
+    match1 = re.search(r'value="([^"]+)".*?name="csrf_token"', resp1.text)
     if not match1:
-        match1 = re.search(r'name="_csrf_token".*?value="([^"]+)"', resp1.text)
+        match1 = re.search(r'name="csrf_token".*?value="([^"]+)"', resp1.text)
     token1 = match1.group(1)
 
-    match2 = re.search(r'value="([^"]+)".*?name="_csrf_token"', resp2.text)
+    match2 = re.search(r'value="([^"]+)".*?name="csrf_token"', resp2.text)
     if not match2:
-        match2 = re.search(r'name="_csrf_token".*?value="([^"]+)"', resp2.text)
+        match2 = re.search(r'name="csrf_token".*?value="([^"]+)"', resp2.text)
     token2 = match2.group(1)
 
     # 異なるリクエストでトークンが異なることを確認
@@ -516,9 +516,9 @@ def test_csrf_token_from_different_endpoint_rejected(client):
     # admin ページから CSRF トークンを取得
     with patch("kotolog.db.crud.get_setting", return_value=None):
         resp_admin = client.get(f"/admin?token={TOKEN}")
-    match = re.search(r'value="([^"]+)".*?name="_csrf_token"', resp_admin.text)
+    match = re.search(r'value="([^"]+)".*?name="csrf_token"', resp_admin.text)
     if not match:
-        match = re.search(r'name="_csrf_token".*?value="([^"]+)"', resp_admin.text)
+        match = re.search(r'name="csrf_token".*?value="([^"]+)"', resp_admin.text)
     csrf_token = match.group(1)
 
     # 記録追加エンドポイントで使用 → 拒否されるべき
@@ -527,7 +527,7 @@ def test_csrf_token_from_different_endpoint_rejected(client):
         data={
             "type": "feeding",
             "started_at": "2026-06-26T21:30",
-            "_csrf_token": csrf_token,
+            "csrf_token": csrf_token,
         },
     )
     # 異なるエンドポイントのトークンは無効

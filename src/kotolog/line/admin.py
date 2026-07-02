@@ -348,11 +348,11 @@ async def admin_record_update(
 
 @router.post("/admin/records/{record_id}/delete")
 async def admin_record_delete(
-    request: Request, record_id: int, token: str | None = None, _csrf_token: str = Form(default="")
+    request: Request, record_id: int, token: str | None = None, csrf_token: str = Form(default="")
 ):
     _check_token(token, request)
     # Issue #32: Validate CSRF token
-    check_csrf_token(request, {"_csrf_token": _csrf_token})
+    check_csrf_token(request, {"csrf_token": csrf_token})
     conn, _ = _get_conn_and_child()
     crud.delete_record(conn, record_id)
     return RedirectResponse(f"/admin/records?token={token or ''}&deleted=1", status_code=303)
@@ -377,11 +377,11 @@ async def admin_users(request: Request, token: str | None = None, saved: bool = 
 
 @router.post("/admin/users/{line_user_id}/nickname")
 async def admin_user_nickname(
-    request: Request, line_user_id: str, token: str | None = None, nickname: str = Form(""), _csrf_token: str = Form(default="")
+    request: Request, line_user_id: str, token: str | None = None, nickname: str = Form(""), csrf_token: str = Form(default="")
 ):
     _check_token(token, request)
     # Issue #32: Validate CSRF token
-    check_csrf_token(request, {"_csrf_token": _csrf_token})
+    check_csrf_token(request, {"csrf_token": csrf_token})
     conn = _get_conn()
     crud.set_user_nickname(conn, line_user_id, nickname.strip() or None)
     return RedirectResponse(f"/admin/users?token={token or ''}&saved=1", status_code=303)
@@ -389,11 +389,11 @@ async def admin_user_nickname(
 
 @router.post("/admin/users/{line_user_id}/notify")
 async def admin_user_notify(
-    request: Request, line_user_id: str, token: str | None = None, enabled: str = Form("1"), _csrf_token: str = Form(default="")
+    request: Request, line_user_id: str, token: str | None = None, enabled: str = Form("1"), csrf_token: str = Form(default="")
 ):
     _check_token(token, request)
     # Issue #32: Validate CSRF token
-    check_csrf_token(request, {"_csrf_token": _csrf_token})
+    check_csrf_token(request, {"csrf_token": csrf_token})
     conn = _get_conn()
     crud.update_user_notify(conn, line_user_id, notify_enabled=(enabled == "1"))
     return RedirectResponse(f"/admin/users?token={token or ''}&saved=1", status_code=303)
@@ -401,11 +401,11 @@ async def admin_user_notify(
 
 @router.post("/admin/users/{line_user_id}/child")
 async def admin_user_child(
-    request: Request, line_user_id: str, token: str | None = None, child_id: str = Form(""), _csrf_token: str = Form(default="")
+    request: Request, line_user_id: str, token: str | None = None, child_id: str = Form(""), csrf_token: str = Form(default="")
 ):
     _check_token(token, request)
     # Issue #32: Validate CSRF token
-    check_csrf_token(request, {"_csrf_token": _csrf_token})
+    check_csrf_token(request, {"csrf_token": csrf_token})
     conn = _get_conn()
     cid = int(child_id) if child_id.strip() else None
     crud.set_user_current_child(conn, line_user_id, cid)
@@ -414,11 +414,11 @@ async def admin_user_child(
 
 @router.post("/admin/users/{line_user_id}/delete")
 async def admin_user_delete(
-    request: Request, line_user_id: str, token: str | None = None, _csrf_token: str = Form(default="")
+    request: Request, line_user_id: str, token: str | None = None, csrf_token: str = Form(default="")
 ):
     _check_token(token, request)
     # Issue #32: Validate CSRF token
-    check_csrf_token(request, {"_csrf_token": _csrf_token})
+    check_csrf_token(request, {"csrf_token": csrf_token})
     conn = _get_conn()
     crud.delete_user(conn, line_user_id)
     return RedirectResponse(f"/admin/users?token={token or ''}&deleted=1", status_code=303)
