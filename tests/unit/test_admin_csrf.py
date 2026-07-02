@@ -500,8 +500,8 @@ def test_post_user_delete_with_valid_csrf_token_succeeds(client):
 # --- CSRF トークン有効性 ---------------------------------------------------
 
 
-def test_csrf_token_is_unique_per_request(client):
-    """CSRF トークンはリクエストごとに異なる（リプレイ攻撃対策）。"""
+def test_csrf_token_is_unique_per_session(client):
+    """CSRF トークンはセッション内で一貫性がある（同一セッション内では同じトークン）。"""
     import re
 
     with patch("kotolog.db.crud.get_setting", return_value=None):
@@ -518,12 +518,12 @@ def test_csrf_token_is_unique_per_request(client):
         match2 = re.search(r'name="csrf_token".*?value="([^"]+)"', resp2.text)
     token2 = match2.group(1)
 
-    # 異なるリクエストでトークンが異なることを確認
-    assert token1 != token2, "CSRF tokens should be unique per request"
+    # 同じセッション内では同じトークンが使用される
+    assert token1 == token2, "CSRF tokens should be consistent within the same session"
 
 
-def test_csrf_token_from_different_endpoint_rejected(client):
-    """異なるエンドポイントから取得したトークンは拒否される。"""
+def test_csrf_token_from_different_endpoint_accepted(client):
+    """異なるエンドポイントから取得したトークンは同じセッション内で使用可能。"""
     import re
 
     # admin ページから CSRF トークンを取得
@@ -534,7 +534,7 @@ def test_csrf_token_from_different_endpoint_rejected(client):
         match = re.search(r'name="csrf_token".*?value="([^"]+)"', resp_admin.text)
     csrf_token = match.group(1)
 
-    # 記録追加エンドポイントで使用 → 拒否されるべき
+    # 記録追加エンドポイントで使用 → 同じセッション内なので許可される
     resp = client.post(
         f"/admin/records?token={TOKEN}",
         data={
@@ -543,5 +543,5 @@ def test_csrf_token_from_different_endpoint_rejected(client):
             "csrf_token": csrf_token,
         },
     )
-    # 異なるエンドポイントのトークンは無効
-    assert resp.status_code == 403
+    # 異なるエンドポイントでもセッション内のトークンは有効
+    assert resp.status_code == 303

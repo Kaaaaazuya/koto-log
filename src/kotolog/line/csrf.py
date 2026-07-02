@@ -1,7 +1,7 @@
 """CSRF トークン生成・検証（Issue #32）。
 
 各リクエストで CSRF トークンを生成して session に保存し、POST リクエストで検証する。
-トークンは Form Data の `_csrf_token` フィールドで送信される。
+トークンは Form Data の `csrf_token` フィールドで送信される。
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ import secrets
 
 from fastapi import HTTPException, Request
 
-_CSRF_TOKEN_FIELD = "_csrf_token"
+_CSRF_TOKEN_FIELD = "csrf_token"
 _SESSION_CSRF_KEY = "csrf_token"
 
 
