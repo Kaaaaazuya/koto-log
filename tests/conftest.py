@@ -17,6 +17,8 @@ import pytest
 
 # Enable auto-approval of test users (Issue #29)
 os.environ["KOTOLOG_APPROVE_ALL_USERS"] = "true"
+# Disable HTTPS requirement for session cookies in tests (TestClient uses HTTP)
+os.environ["SESSION_COOKIE_SECURE"] = "false"
 
 from kotolog.config import Config
 from kotolog.db import crud

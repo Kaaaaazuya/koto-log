@@ -98,7 +98,7 @@ async def admin_login(request: Request):
 @router.post("/admin/login")
 async def admin_login_post(
     request: Request,
-    token: str = Form(...),
+    token: str = Form(default=""),
 ):
     """Validate token and set session cookie.
 
