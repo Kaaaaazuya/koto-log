@@ -58,14 +58,14 @@
           <td style="font-size:.78rem;color:#888;">{{ u.line_user_id }}</td>
           <td>
             <form method="POST" action="/admin/users/{{ u.line_user_id }}/nickname?token={{ token }}" class="inline-form">
-              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <input type="text" name="nickname" value="{{ u.nickname or '' }}" placeholder="未設定">
               <button type="submit" class="btn btn-primary">保存</button>
             </form>
           </td>
           <td>
             <form method="POST" action="/admin/users/{{ u.line_user_id }}/child?token={{ token }}" class="inline-form">
-              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <select name="child_id" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:.85rem;">
                 <option value="">—</option>
                 {% for c in children %}
@@ -79,14 +79,14 @@
             {% if u.notify_enabled %}
               <span class="badge badge-on">ON</span>
               <form method="POST" action="/admin/users/{{ u.line_user_id }}/notify?token={{ token }}" class="inline-form">
-                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="enabled" value="0">
                 <button type="submit" class="btn btn-secondary" style="font-size:.78rem;padding:4px 10px;">OFFにする</button>
               </form>
             {% else %}
               <span class="badge badge-off">OFF</span>
               <form method="POST" action="/admin/users/{{ u.line_user_id }}/notify?token={{ token }}" class="inline-form">
-                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="enabled" value="1">
                 <button type="submit" class="btn btn-primary" style="font-size:.78rem;padding:4px 10px;">ONにする</button>
               </form>
@@ -94,7 +94,7 @@
           </td>
           <td>
             <form method="POST" action="/admin/users/{{ u.line_user_id }}/delete?token={{ token }}" class="inline-form"
-                  onsubmit="return confirm('{{ u.nickname or u.line_user_id }} を削除しますか？')">
+                  onsubmit="return confirm({{ (u.nickname or u.line_user_id) | tojson }} + ' を削除しますか？')">
               <button type="submit" class="btn btn-danger">削除</button>
             </form>
           </td>

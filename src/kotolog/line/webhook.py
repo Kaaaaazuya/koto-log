@@ -159,6 +159,10 @@ async def _handle_text_event(event: dict) -> None:
         user_id = event.get("source", {}).get("userId", "") or None
         if user_id:
             crud.upsert_user(conn, user_id)
+            # Test environment: auto-approve all users (set KOTOLOG_APPROVE_ALL_USERS=true)
+            if os.environ.get("KOTOLOG_APPROVE_ALL_USERS") == "true":
+                if not crud.is_user_approved(conn, user_id):
+                    crud.approve_user(conn, user_id)
             # Issue #29: Check if user is approved
             if not crud.is_user_approved(conn, user_id):
                 reply_text = (
@@ -169,7 +173,6 @@ async def _handle_text_event(event: dict) -> None:
                 reply_token = event.get("replyToken", "")
                 access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
                 await asyncio.to_thread(reply_mod.send_reply, reply_token, reply_text, access_token)
-                crud.mark_processed(conn, event_id)
                 return
 
         text = event["message"]["text"]

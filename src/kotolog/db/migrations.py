@@ -58,8 +58,8 @@ def _M0004_USER_APPROVAL(conn) -> None:
     columns = [row["name"] for row in cursor.fetchall()]
     if "approved" not in columns:
         conn.execute("ALTER TABLE users ADD COLUMN approved INTEGER NOT NULL DEFAULT 0")
-        # 既存ユーザーは承認済みと見なす（新規外部ユーザーのみ未承認で登録）
-        conn.execute("UPDATE users SET approved = 1")
+    # 既存ユーザーは承認済みと見なす（新規外部ユーザーのみ未承認で登録）
+    conn.execute("UPDATE users SET approved = 1 WHERE approved = 0")
 
 
 MIGRATIONS: list[tuple[int, str | Callable]] = [
