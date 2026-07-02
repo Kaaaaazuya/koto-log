@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -22,8 +23,14 @@ JST = timezone(timedelta(hours=9))
 
 
 def _check_token(token: str | None) -> None:
+    """Default-deny authentication: always require a valid token.
+
+    Issue #27: Admin screens MUST require authentication regardless of environment.
+    Uses secrets.compare_digest for timing-attack resistant token comparison.
+    """
     expected = os.environ.get("KOTOLOG_DASHBOARD_TOKEN", "")
-    if expected and token != expected:
+    # Default-deny: reject unless token is explicitly configured and matches
+    if not expected or not token or not secrets.compare_digest(token, expected):
         raise HTTPException(status_code=403, detail="Invalid token")
 
 

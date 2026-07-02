@@ -229,7 +229,8 @@ def test_delete_calls_delete_record(client):
 # --- トークン未設定時 -------------------------------------------------------
 
 
-def test_no_token_env_allows_access(monkeypatch):
+def test_no_token_env_denies_access(monkeypatch):
+    """Issue #27: Default-deny means access denied when no token env var is set."""
     monkeypatch.setenv("LINE_CHANNEL_SECRET", "secret")
     monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "token")
     monkeypatch.delenv("KOTOLOG_DASHBOARD_TOKEN", raising=False)
@@ -240,4 +241,4 @@ def test_no_token_env_allows_access(monkeypatch):
             from kotolog.line.webhook import app
 
             resp = TestClient(app, follow_redirects=False).get("/admin/records")
-    assert resp.status_code == 200
+    assert resp.status_code == 403
