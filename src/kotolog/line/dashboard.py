@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from importlib import resources
@@ -14,25 +15,28 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from kotolog.db import crud
-from kotolog.types import DiaperSubType, RecordType
+from kotolog.types import RECORD_TYPE_LABELS, DiaperSubType, RecordType
 
 router = APIRouter()
 _templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
 JST = timezone(timedelta(hours=9))
 
+# Issue #39: 全 RecordType を網羅する（新種別追加時はここにアイコンを足すだけでよい）
 _ICONS: dict[str, str] = {
-    "feeding": "🍼",
-    "sleep": "🌙",
-    "diaper": "💧",
-    "temp": "🌡️",
+    RecordType.FEEDING: "🍼",
+    RecordType.SLEEP: "🌙",
+    RecordType.DIAPER: "💧",
+    RecordType.TEMP: "🌡️",
+    RecordType.BABY_FOOD: "🍚",
+    RecordType.BATH: "🛁",
+    RecordType.MEDICINE: "💊",
+    RecordType.HOSPITAL: "🏥",
+    RecordType.OUTING: "🚶",
+    RecordType.HEIGHT: "📏",
+    RecordType.WEIGHT: "⚖️",
 }
-_TYPE_LABELS: dict[str, str] = {
-    "feeding": "授乳",
-    "sleep": "睡眠",
-    "diaper": "おむつ",
-    "temp": "体温",
-}
+_TYPE_LABELS: dict[str, str] = RECORD_TYPE_LABELS
 
 
 def _timeline_label(r: dict) -> str:
@@ -60,12 +64,23 @@ def _timeline_label(r: dict) -> str:
         return sub or "おむつ"
     if t == "temp":
         return f"{amount}℃" if amount else "体温"
-    return t
+    # Issue #39: 離乳食・お風呂・薬・病院・外出・身長・体重 等その他種別の汎用表示
+    parts = [sub] if sub else []
+    if amount:
+        amt_str = str(int(amount)) if amount == int(amount) else str(amount)
+        parts.append(f"{amt_str}{r.get('unit') or ''}")
+    return " · ".join(parts) or _TYPE_LABELS.get(t, t)
 
 
 def _check_token(token: str | None) -> None:
+    """Default-deny authentication: always require a valid token.
+
+    Issue #27: Dashboard MUST require authentication regardless of environment.
+    Uses secrets.compare_digest for timing-attack resistant token comparison.
+    """
     expected = os.environ.get("KOTOLOG_DASHBOARD_TOKEN", "")
-    if expected and token != expected:
+    # Default-deny: reject unless token is explicitly configured and matches
+    if not expected or not token or not secrets.compare_digest(token, expected):
         raise HTTPException(status_code=403, detail="Invalid token")
 
 
@@ -106,12 +121,13 @@ async def dashboard(request: Request, token: str | None = None, days: int = 7):
                     pass
         return round(total, 1)
 
-    feedings_today = _day_records(RecordType.FEEDING, day=now)
-    sleeps_today = _day_records(RecordType.SLEEP, day=now)
-    diapers_today = _day_records(RecordType.DIAPER, day=now)
+    # 今日のタイムライン（Issue #39: 種別を限定せず全カテゴリを一度に取得する）。
+    # レビュー指摘: feeding/sleep/diaper は個別クエリせず、この結果をメモリ上でフィルタする。
+    _all_today = [dict(r) for r in _day_records(None, day=now)]
+    feedings_today = [r for r in _all_today if r["type"] == RecordType.FEEDING]
+    sleeps_today = [r for r in _all_today if r["type"] == RecordType.SLEEP]
+    diapers_today = [r for r in _all_today if r["type"] == RecordType.DIAPER]
 
-    # 今日のタイムライン（全カテゴリを時系列降順に並べる）
-    _all_today = [dict(r) for r in feedings_today + sleeps_today + diapers_today]
     for _r in _all_today:
         _r["icon"] = _ICONS.get(_r["type"], "📝")
         _r["type_label"] = _TYPE_LABELS.get(_r["type"], _r["type"])
@@ -145,9 +161,9 @@ async def dashboard(request: Request, token: str | None = None, days: int = 7):
         request,
         "dashboard.html",
         {
-            "feedings_today": [dict(r) for r in feedings_today],
-            "sleeps_today": [dict(r) for r in sleeps_today],
-            "diapers_today": [dict(r) for r in diapers_today],
+            "feedings_today": feedings_today,
+            "sleeps_today": sleeps_today,
+            "diapers_today": diapers_today,
             "timeline_today": timeline_today,
             "sleep_today_str": sleep_today_str,
             "feeding_summaries": feeding_summaries,

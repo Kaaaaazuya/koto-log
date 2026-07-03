@@ -67,6 +67,60 @@ def test_mark_processed_idempotent(conn):
     assert crud.is_processed(conn, "evt_abc") is True
 
 
+# --- Issue #47: 冪等化用データの定期クリーンアップ ----------------------------
+
+
+def _iso_days_ago(days: int) -> str:
+    from datetime import datetime, timedelta, timezone
+
+    jst = timezone(timedelta(hours=9))
+    return (datetime.now(jst) - timedelta(days=days)).isoformat()
+
+
+def test_cleanup_old_processed_events_removes_only_old_rows(conn):
+    conn.execute(
+        "INSERT INTO processed_events (event_id, created_at) VALUES (?, ?)",
+        ("evt_old", _iso_days_ago(10)),
+    )
+    conn.execute(
+        "INSERT INTO processed_events (event_id, created_at) VALUES (?, ?)",
+        ("evt_recent", _iso_days_ago(1)),
+    )
+    conn.commit()
+
+    deleted = crud.cleanup_old_processed_events(conn, older_than_days=7)
+
+    assert deleted == 1
+    assert crud.is_processed(conn, "evt_old") is False
+    assert crud.is_processed(conn, "evt_recent") is True
+
+
+def test_cleanup_old_processed_events_returns_zero_when_nothing_old(conn):
+    crud.mark_processed(conn, "evt_new")
+    deleted = crud.cleanup_old_processed_events(conn, older_than_days=7)
+    assert deleted == 0
+    assert crud.is_processed(conn, "evt_new") is True
+
+
+def test_cleanup_old_processed_events_default_retention_is_seven_days(conn):
+    conn.execute(
+        "INSERT INTO processed_events (event_id, created_at) VALUES (?, ?)",
+        ("evt_8d", _iso_days_ago(8)),
+    )
+    conn.commit()
+
+    deleted = crud.cleanup_old_processed_events(conn)
+
+    assert deleted == 1
+
+
+@pytest.mark.parametrize("bad_value", [0, -1, -100])
+def test_cleanup_old_processed_events_rejects_non_positive_retention(conn, bad_value):
+    """older_than_days が 0 以下だと全件（または未来分まで）削除しかねないため拒否する。"""
+    with pytest.raises(ValueError, match="older_than_days"):
+        crud.cleanup_old_processed_events(conn, older_than_days=bad_value)
+
+
 # --- T2.3: webhook → Agent → reply の配線 -----------------------------------
 
 
@@ -75,6 +129,7 @@ def webhook_client(monkeypatch, conn, child_id):
     """in-memory DB + FakeLLM + Reply モックで組んだ TestClient。"""
     import kotolog.line.reply as reply_mod
     import kotolog.line.webhook as wh
+    from kotolog.db import crud
 
     llm = FakeLLM([make_resp(content="記録しました。"), make_resp(content="記録しました。")])
     agent = Agent(client=llm, conn=conn, _now=lambda: NOW)
@@ -88,6 +143,11 @@ def webhook_client(monkeypatch, conn, child_id):
     monkeypatch.setattr(reply_mod, "send_reply", mock_send_reply)
     monkeypatch.setenv("LINE_CHANNEL_SECRET", CHANNEL_SECRET)
     monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", ACCESS_TOKEN)
+
+    # Issue #29: Approve test user by default (tests create users, they should be approved)
+    # Create and approve the test user used in tests
+    crud.upsert_user(conn, "U_test")
+    crud.approve_user(conn, "U_test")
 
     return TestClient(wh.app, raise_server_exceptions=True), sent
 
@@ -131,6 +191,48 @@ def test_non_text_event_is_ignored(webhook_client):
     assert len(sent) == 0
 
 
+# --- Issue #40: エラー時にもユーザーへ返信する ------------------------------
+
+
+def test_agent_error_still_sends_reply_to_user(monkeypatch, conn, child_id):
+    """agent.handle が例外を送出しても、ユーザーへ簡易案内が返信される。"""
+    import kotolog.line.reply as reply_mod
+    import kotolog.line.webhook as wh
+    from kotolog.db import crud as crud_mod
+
+    class BoomAgent:
+        conn = None
+        config = None
+
+        def handle(self, *a, **kw):
+            raise RuntimeError("boom")
+
+    boom = BoomAgent()
+    boom.conn = conn
+
+    crud_mod.upsert_user(conn, "U_test")
+    crud_mod.approve_user(conn, "U_test")
+
+    sent: list[dict] = []
+
+    def mock_send_reply(reply_token: str, text: str, access_token: str) -> None:
+        sent.append({"reply_token": reply_token, "text": text})
+
+    monkeypatch.setattr(wh, "_agent", boom)
+    monkeypatch.setattr(reply_mod, "send_reply", mock_send_reply)
+    monkeypatch.setenv("LINE_CHANNEL_SECRET", CHANNEL_SECRET)
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", ACCESS_TOKEN)
+
+    client = TestClient(wh.app, raise_server_exceptions=True)
+    body = _text_event("こんにちは")
+    resp = client.post("/webhook", content=body, headers={"X-Line-Signature": _sign(body)})
+
+    assert resp.status_code == 200
+    assert len(sent) == 1
+    assert sent[0]["reply_token"] == "rtok_001"
+    assert sent[0]["text"] == wh._ERROR_REPLY_TEXT
+
+
 # --- T9.3.1: upsert_user 自動登録 -------------------------------------------
 
 
@@ -167,6 +269,8 @@ def test_switch_child_command_updates_current(monkeypatch, conn, child_id):
 
     hanako = crud_mod.create_child(conn, "はなこ")
     crud_mod.upsert_user(conn, "U001")
+    # Issue #29: Approve user so they can use bot functionality
+    crud_mod.approve_user(conn, "U001")
 
     llm = FakeLLM([])
     agent = Agent(client=llm, conn=conn, _now=lambda: NOW)

@@ -13,21 +13,45 @@ import hmac
 import json
 import os
 import re
+import secrets
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
+from starlette.middleware.sessions import SessionMiddleware
 
 from kotolog.db import crud
 from kotolog.line.admin import router as admin_router
 from kotolog.line.dashboard import router as dashboard_router
+from kotolog.line.security_headers import SecurityHeadersMiddleware
 
 load_dotenv()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import logging
+
     from kotolog.line.scheduler import start_scheduler
+
+    logger = logging.getLogger(__name__)
+
+    # Issue #31: Verify required environment variables for LINE webhook
+    line_channel_secret = os.environ.get("LINE_CHANNEL_SECRET", "").strip()
+    line_channel_access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "").strip()
+
+    if not line_channel_secret or not line_channel_access_token:
+        missing_vars = []
+        if not line_channel_secret:
+            missing_vars.append("LINE_CHANNEL_SECRET")
+        if not line_channel_access_token:
+            missing_vars.append("LINE_CHANNEL_ACCESS_TOKEN")
+        logger.warning(
+            f"LINE webhook is disabled: missing required environment variables: {', '.join(missing_vars)}. "
+            "Set these variables to enable LINE message handling."
+        )
+        yield
+        return
 
     scheduler = start_scheduler()
     try:
@@ -37,10 +61,40 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+# Session middleware for cookie-based authentication (Issue #28)
+# Use a strong secret key from environment or generate a random one
+_SESSION_SECRET = os.environ.get("SESSION_SECRET_KEY")
+if not _SESSION_SECRET:
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.warning(
+        "SESSION_SECRET_KEY not set; generating random key. "
+        "Sessions will be lost on server restart. Set SESSION_SECRET_KEY in production."
+    )
+    _SESSION_SECRET = secrets.token_urlsafe(32)
+_SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "true").lower() == "true"
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=_SESSION_SECRET,
+    session_cookie="kotolog_session",
+    max_age=86400 * 7,  # 7 days
+    path="/admin",
+    https_only=_SESSION_COOKIE_SECURE,
+    same_site="strict",
+)
+
+# Issue #35: Add HTTP security headers to all responses
+app.add_middleware(SecurityHeadersMiddleware)
+
 app.include_router(dashboard_router)
 app.include_router(admin_router)
 
 _HELP_COMMANDS = {"操作一覧", "help", "ヘルプ", "?", "？"}
+
+# Issue #40: 処理中に例外が起きた場合にユーザーへ返す簡易案内
+_ERROR_REPLY_TEXT = "エラーが発生しました。しばらくしてからもう一度お試しください。"
 
 _HELP_TEXT = """\
 操作一覧
@@ -93,9 +147,15 @@ async def webhook(
     background_tasks: BackgroundTasks,
     x_line_signature: str = Header(None),
 ):
-    """署名検証→即 200 OK、テキストイベントはバックグラウンドで処理。"""
+    """署名検証→即 200 OK、テキストイベントはバックグラウンドで処理。
+
+    Issue #31: LINE_CHANNEL_SECRET と LINE_CHANNEL_ACCESS_TOKEN を必須環境変数として厳密に検証。
+    """
     body = await request.body()
-    channel_secret = os.environ.get("LINE_CHANNEL_SECRET", "")
+    channel_secret = os.environ.get("LINE_CHANNEL_SECRET", "").strip()
+    access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "").strip()
+    if not channel_secret or not access_token:
+        raise HTTPException(status_code=503, detail="LINE webhook not configured")
     if not _verify_signature(body, x_line_signature or "", channel_secret):
         raise HTTPException(status_code=401, detail="Invalid signature")
 
@@ -126,7 +186,11 @@ def _try_switch_child(conn, user_id: str | None, text: str) -> str | None:
 
 
 async def _handle_text_event(event: dict) -> None:
-    """冪等チェック → Agent 処理 → Reply API。"""
+    """冪等チェック → Agent 処理 → Reply API。
+
+    Issue #40: 途中で例外が発生した場合もユーザーが無反応に見えないよう、
+    簡易な案内メッセージを返信する。
+    """
     import traceback
 
     from kotolog.line import reply as reply_mod
@@ -143,6 +207,28 @@ async def _handle_text_event(event: dict) -> None:
         user_id = event.get("source", {}).get("userId", "") or None
         if user_id:
             crud.upsert_user(conn, user_id)
+            # Issue #29: Check if user is approved
+            if not crud.is_user_approved(conn, user_id):
+                reply_text = (
+                    "ご登録ありがとうございます。\n"
+                    "システム管理者による承認後にご利用いただけます。\n"
+                    "お手数ですがお待ちください。"
+                )
+                reply_token = event.get("replyToken", "")
+                access_token = (agent.config.line_channel_access_token if agent.config else None) or ""
+                await asyncio.to_thread(reply_mod.send_reply, reply_token, reply_text, access_token)
+                crud.mark_processed(conn, event_id)
+                return
+
+            # Issue #37: Check message rate limit
+            if agent.config and not crud.check_rate_limit(
+                conn, user_id, "message", agent.config.user_msg_limit
+            ):
+                reply_text = "メッセージの送信回数が多すぎます。しばらく待ってからお試しください。"
+                reply_token = event.get("replyToken", "")
+                access_token = (agent.config.line_channel_access_token if agent.config else None) or ""
+                await asyncio.to_thread(reply_mod.send_reply, reply_token, reply_text, access_token)
+                return
 
         text = event["message"]["text"]
         if text.strip() in _HELP_COMMANDS:
@@ -152,8 +238,22 @@ async def _handle_text_event(event: dict) -> None:
         else:
             reply_text = await asyncio.to_thread(agent.handle, text, user_id)
 
+        # Issue #37: Increment message counter after successful handling
+        if user_id and agent.config:
+            crud.increment_rate_limit(conn, user_id, "message")
+
         reply_token = event.get("replyToken", "")
-        access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+        access_token = (agent.config.line_channel_access_token if agent.config else None) or ""
         await asyncio.to_thread(reply_mod.send_reply, reply_token, reply_text, access_token)
     except Exception:
         traceback.print_exc()
+        if "reply_token" not in locals():
+            try:
+                reply_token = event.get("replyToken", "")
+                access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+                if reply_token and access_token:
+                    await asyncio.to_thread(
+                        reply_mod.send_reply, reply_token, _ERROR_REPLY_TEXT, access_token
+                    )
+            except Exception:
+                traceback.print_exc()

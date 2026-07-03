@@ -48,6 +48,32 @@ _FAKE_DIAPER = {
     "created_at": "2024-01-01T10:01:00+09:00",
     "updated_at": "2024-01-01T10:01:00+09:00",
 }
+_FAKE_BABY_FOOD = {
+    "id": 4,
+    "child_id": 1,
+    "type": "baby_food",
+    "sub_type": None,
+    "amount": 50.0,
+    "unit": "g",
+    "started_at": "2024-01-01T12:00:00+09:00",
+    "ended_at": None,
+    "note": None,
+    "created_at": "2024-01-01T12:01:00+09:00",
+    "updated_at": "2024-01-01T12:01:00+09:00",
+}
+_FAKE_OUTING = {
+    "id": 5,
+    "child_id": 1,
+    "type": "outing",
+    "sub_type": "公園",
+    "amount": None,
+    "unit": None,
+    "started_at": "2024-01-01T15:00:00+09:00",
+    "ended_at": None,
+    "note": None,
+    "created_at": "2024-01-01T15:01:00+09:00",
+    "updated_at": "2024-01-01T15:01:00+09:00",
+}
 
 
 @pytest.fixture()
@@ -133,8 +159,28 @@ def test_dashboard_sleep_summary_str(client):
     assert "2h" in resp.text
 
 
-def test_no_token_env_allows_access(monkeypatch):
-    """KOTOLOG_DASHBOARD_TOKEN 未設定時はトークンなしでアクセス可。"""
+def test_dashboard_timeline_includes_baby_food(client):
+    """Issue #39: 離乳食など後から追加した種別も今日のタイムラインに表示される。"""
+    with patch("kotolog.db.crud.query_records", return_value=[_FAKE_BABY_FOOD]):
+        resp = client.get(f"/dashboard?token={TOKEN}")
+    assert resp.status_code == 200
+    assert "離乳食" in resp.text
+    assert "🍚" in resp.text
+    assert "50g" in resp.text
+
+
+def test_dashboard_timeline_includes_outing_with_sub_type(client):
+    """Issue #39: sub_type を持つ新種別（外出）もタイムラインに詳細付きで表示される。"""
+    with patch("kotolog.db.crud.query_records", return_value=[_FAKE_OUTING]):
+        resp = client.get(f"/dashboard?token={TOKEN}")
+    assert resp.status_code == 200
+    assert "外出" in resp.text
+    assert "🚶" in resp.text
+    assert "公園" in resp.text
+
+
+def test_no_token_env_denies_access(monkeypatch):
+    """Issue #27: Default-deny means access denied even when KOTOLOG_DASHBOARD_TOKEN not set."""
     monkeypatch.setenv("LINE_CHANNEL_SECRET", "secret")
     monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "token")
     monkeypatch.delenv("KOTOLOG_DASHBOARD_TOKEN", raising=False)
@@ -146,4 +192,31 @@ def test_no_token_env_allows_access(monkeypatch):
 
             client = TestClient(app, raise_server_exceptions=True)
             resp = client.get("/dashboard")
-    assert resp.status_code == 200
+    assert resp.status_code == 403
+
+
+# --- Issue #39: _timeline_label の汎用フォールバック -------------------------
+
+
+def test_timeline_label_baby_food_with_amount():
+    from kotolog.line.dashboard import _timeline_label
+
+    assert _timeline_label({"type": "baby_food", "amount": 50, "unit": "g"}) == "50g"
+
+
+def test_timeline_label_medicine_with_sub_type():
+    from kotolog.line.dashboard import _timeline_label
+
+    assert _timeline_label({"type": "medicine", "sub_type": "ビオフェルミン"}) == "ビオフェルミン"
+
+
+def test_timeline_label_bath_falls_back_to_type_label():
+    from kotolog.line.dashboard import _timeline_label
+
+    assert _timeline_label({"type": "bath"}) == "お風呂"
+
+
+def test_timeline_label_unknown_type_falls_back_to_raw_type():
+    from kotolog.line.dashboard import _timeline_label
+
+    assert _timeline_label({"type": "something_new"}) == "something_new"

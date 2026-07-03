@@ -102,6 +102,22 @@ def build_daily_summary_text(today_str: str, records: list[dict]) -> str | None:
         if temps:
             lines.append(f"体温: 最高{max(temps):.1f}℃")
 
+    # Issue #39: 後から追加した記録種別もサマリー対象にする
+    if baby_food := [r for r in records if r["type"] == "baby_food"]:
+        lines.append(f"離乳食: {len(baby_food)}回")
+
+    if any(r["type"] == "bath" for r in records):
+        lines.append("お風呂: 済み")
+
+    if medicine := [r for r in records if r["type"] == "medicine"]:
+        lines.append(f"薬: {len(medicine)}回")
+
+    if hospital := [r for r in records if r["type"] == "hospital"]:
+        lines.append(f"病院: {len(hospital)}回")
+
+    if outing := [r for r in records if r["type"] == "outing"]:
+        lines.append(f"外出: {len(outing)}回")
+
     return "\n".join(lines)
 
 
@@ -160,6 +176,19 @@ async def _daily_summary_job() -> None:
     await asyncio.to_thread(_run_daily_summary_push)
 
 
+def _run_processed_events_cleanup() -> None:
+    """毎日深夜、期限切れの processed_events（Issue #47）を削除する。"""
+    cfg = load_config()
+    conn = connect(cfg.db_url, cfg.turso_auth_token)
+    deleted = crud.cleanup_old_processed_events(conn)
+    if deleted:
+        print(f"[cleanup] removed {deleted} old processed_events rows", flush=True)
+
+
+async def _cleanup_job() -> None:
+    await asyncio.to_thread(_run_processed_events_cleanup)
+
+
 def start_scheduler() -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
@@ -169,6 +198,10 @@ def start_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(
         _daily_summary_job,
         CronTrigger(hour=21, minute=0, timezone="Asia/Tokyo"),
+    )
+    scheduler.add_job(
+        _cleanup_job,
+        CronTrigger(hour=3, minute=0, timezone="Asia/Tokyo"),
     )
     scheduler.start()
     return scheduler
