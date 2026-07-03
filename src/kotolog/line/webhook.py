@@ -30,6 +30,7 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import logging
+
     from kotolog.line.scheduler import start_scheduler
 
     logger = logging.getLogger(__name__)
