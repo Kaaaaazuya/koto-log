@@ -350,3 +350,84 @@ def mark_processed(conn: sqlite3.Connection, event_id: str) -> None:
         (event_id, _now()),
     )
     conn.commit()
+
+
+# --- レート制限・コスト管理（Issue #37） -------------------------------------------
+
+
+def check_rate_limit(
+    conn: sqlite3.Connection,
+    user_id: str,
+    limit_type: str,
+    max_count: int,
+    window_hours: int = 1,
+) -> bool:
+    """レート制限チェック。制限内なら True、超過なら False を返す。
+
+    limit_type: "message" または "llm_call"
+    window_hours: 制限をリセットする時間ウィンドウ（時間）
+    """
+    if not user_id:
+        return True
+
+    now = datetime.now(JST)
+    window_start = (now - timedelta(hours=window_hours)).isoformat()
+
+    row = conn.execute(
+        "SELECT * FROM user_rate_limits WHERE line_user_id = ?",
+        (user_id,),
+    ).fetchone()
+
+    # ウィンドウ外のレコードは新規作成
+    if row is None or (row["window_start"] < window_start):
+        conn.execute(
+            "INSERT OR REPLACE INTO user_rate_limits"
+            "(line_user_id, message_count, llm_call_count, window_start, updated_at)"
+            "VALUES (?, ?, ?, ?, ?)",
+            (user_id, 0, 0, now.isoformat(), _now()),
+        )
+        conn.commit()
+        return True
+
+    # 現在のカウントをチェック
+    count_key = "message_count" if limit_type == "message" else "llm_call_count"
+    current_count = row[count_key]
+
+    return current_count < max_count
+
+
+def increment_rate_limit(conn: sqlite3.Connection, user_id: str, limit_type: str) -> None:
+    """レート制限カウンターをインクリメント。"""
+    if not user_id:
+        return
+
+    now = datetime.now(JST)
+    count_key = "message_count" if limit_type == "message" else "llm_call_count"
+    other_key = (
+        "llm_call_count" if limit_type == "message" else "message_count"
+    )
+
+    # 既存レコードをインクリメント、なければ新規作成
+    row = conn.execute(
+        f"SELECT {count_key} FROM user_rate_limits WHERE line_user_id = ?",
+        (user_id,),
+    ).fetchone()
+
+    if row is not None:
+        conn.execute(
+            f"UPDATE user_rate_limits SET {count_key} = {count_key} + 1, updated_at = ?"
+            "WHERE line_user_id = ?",
+            (_now(), user_id),
+        )
+    else:
+        values = {"message_count": 1 if limit_type == "message" else 0,
+                  "llm_call_count": 1 if limit_type == "llm_call" else 0}
+        conn.execute(
+            "INSERT INTO user_rate_limits"
+            "(line_user_id, message_count, llm_call_count, window_start, updated_at)"
+            "VALUES (?, ?, ?, ?, ?)",
+            (user_id, values["message_count"], values["llm_call_count"],
+             now.isoformat(), _now()),
+        )
+
+    conn.commit()

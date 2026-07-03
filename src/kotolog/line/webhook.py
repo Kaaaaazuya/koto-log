@@ -182,6 +182,14 @@ async def _handle_text_event(event: dict) -> None:
                 crud.mark_processed(conn, event_id)
                 return
 
+            # Issue #37: Check message rate limit
+            if not crud.check_rate_limit(conn, user_id, "message", agent.config.user_msg_limit):
+                reply_text = "メッセージの送信回数が多すぎます。しばらく待ってからお試しください。"
+                reply_token = event.get("replyToken", "")
+                access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+                await asyncio.to_thread(reply_mod.send_reply, reply_token, reply_text, access_token)
+                return
+
         text = event["message"]["text"]
         if text.strip() in _HELP_COMMANDS:
             reply_text = _HELP_TEXT
@@ -189,6 +197,10 @@ async def _handle_text_event(event: dict) -> None:
             reply_text = switch_reply
         else:
             reply_text = await asyncio.to_thread(agent.handle, text, user_id)
+
+        # Issue #37: Increment message counter after successful handling
+        if user_id:
+            crud.increment_rate_limit(conn, user_id, "message")
 
         reply_token = event.get("replyToken", "")
         access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")

@@ -20,7 +20,7 @@ def build_agent(config=None) -> Agent:
     crud.init_db(conn)
     crud.get_or_create_default_child(conn, config.default_child)
     client = LLMClient(config, sink=sink_from_config(config))
-    return Agent(client=client, conn=conn)
+    return Agent(client=client, conn=conn, config=config)
 
 
 def main() -> None:

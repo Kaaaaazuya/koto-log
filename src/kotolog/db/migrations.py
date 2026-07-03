@@ -62,10 +62,25 @@ def _M0004_USER_APPROVAL(conn) -> None:
         conn.execute("UPDATE users SET approved = 1")
 
 
+# 0005: user_rate_limits テーブル追加（Issue #37: レート制限・コスト上限）。
+# ユーザーごとのメッセージ処理とLLM呼び出し回数をトラッキング。時間ウィンドウごとに管理。
+_M0005_USER_RATE_LIMITS = """
+CREATE TABLE IF NOT EXISTS user_rate_limits (
+    line_user_id       TEXT PRIMARY KEY,
+    message_count      INTEGER NOT NULL DEFAULT 0,
+    llm_call_count     INTEGER NOT NULL DEFAULT 0,
+    window_start       TEXT NOT NULL,
+    updated_at         TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_user_rate_limits_window ON user_rate_limits(window_start);
+"""
+
+
 MIGRATIONS: list[tuple[int, str | Callable]] = [
     (2, _M0002_USERS),
     (3, _M0003_CHILD_SEX),
     (4, _M0004_USER_APPROVAL),
+    (5, _M0005_USER_RATE_LIMITS),
 ]
 
 # 既存DB判定に使うコアテーブル（どれかがあれば「既存DB」とみなす）
