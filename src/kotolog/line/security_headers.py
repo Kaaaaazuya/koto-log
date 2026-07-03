@@ -1,6 +1,6 @@
 """HTTP Security Headers Middleware (Issue #35).
 
-Add security headers to all responses:
+Add security headers to all responses using pure ASGI middleware:
 - Content-Security-Policy (CSP)
 - X-Frame-Options
 - X-Content-Type-Options
@@ -11,41 +11,53 @@ Add security headers to all responses:
 
 from __future__ import annotations
 
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
+from starlette.datastructures import MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next) -> Response:
-        response = await call_next(request)
+class SecurityHeadersMiddleware:
+    """Pure ASGI middleware for adding HTTP security headers."""
 
-        # CSP: Restrict to self, allow fonts and styles from trusted sources
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline'; "
-            "style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data: https:; "
-            "font-src 'self' data:; "
-            "connect-src 'self'; "
-            "frame-ancestors 'none'; "
-            "base-uri 'self'; "
-            "form-action 'self'"
-        )
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
 
-        # Prevent clickjacking
-        response.headers["X-Frame-Options"] = "DENY"
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
 
-        # Prevent MIME type sniffing
-        response.headers["X-Content-Type-Options"] = "nosniff"
+        async def send_with_security_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
 
-        # Control referrer information
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+                # CSP: Restrict to self, allow fonts and styles from trusted sources
+                headers["Content-Security-Policy"] = (
+                    "default-src 'self'; "
+                    "script-src 'self' 'unsafe-inline'; "
+                    "style-src 'self' 'unsafe-inline'; "
+                    "img-src 'self' data: https:; "
+                    "font-src 'self' data:; "
+                    "connect-src 'self'; "
+                    "frame-ancestors 'none'; "
+                    "base-uri 'self'; "
+                    "form-action 'self'"
+                )
 
-        # Legacy XSS protection header
-        response.headers["X-XSS-Protection"] = "1; mode=block"
+                # Prevent clickjacking
+                headers["X-Frame-Options"] = "DENY"
 
-        # HSTS: Enforce HTTPS for 1 year (if HTTPS is enabled)
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+                # Prevent MIME type sniffing
+                headers["X-Content-Type-Options"] = "nosniff"
 
-        return response
+                # Control referrer information
+                headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+                # Legacy XSS protection header
+                headers["X-XSS-Protection"] = "1; mode=block"
+
+                # HSTS: Enforce HTTPS for 1 year (if HTTPS is enabled)
+                headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+
+            await send(message)
+
+        await self.app(scope, receive, send_with_security_headers)
