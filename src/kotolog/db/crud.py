@@ -26,30 +26,39 @@ def init_db(conn: sqlite3.Connection) -> None:
 
 
 def ensure_child(conn: sqlite3.Connection, name_alias: str) -> int:
-    """別名の子を取得（無ければ作成）して id を返す。"""
-    row = conn.execute("SELECT id FROM children WHERE name_alias = ?", (name_alias,)).fetchone()
-    if row is not None:
-        return row["id"]
-    cur = conn.execute("INSERT INTO children (name_alias) VALUES (?)", (name_alias,))
-    conn.commit()
-    return cur.lastrowid
+    """別名の子を取得（無ければ作成）して id を返す。
+
+    SELECT→INSERT の複合操作のため、並行呼び出しでの重複作成を防ぐべく
+    conn.lock で直列化する（Issue #33）。
+    """
+    with conn.lock:
+        row = conn.execute("SELECT id FROM children WHERE name_alias = ?", (name_alias,)).fetchone()
+        if row is not None:
+            return row["id"]
+        cur = conn.execute("INSERT INTO children (name_alias) VALUES (?)", (name_alias,))
+        conn.commit()
+        return cur.lastrowid
 
 
 # --- 複数子・既定児（P9.1 / ADR-0006） ------------------------------------
 
 
 def create_child(conn: sqlite3.Connection, name_alias: str, birthday: str | None = None) -> int:
-    """子を新規作成して id を返す。最初の子なら既定児に自動設定する。"""
-    cur = conn.execute(
-        "INSERT INTO children (name_alias, birthday) VALUES (?, ?)",
-        (name_alias, birthday),
-    )
-    child_id = cur.lastrowid
-    if get_default_child_id(conn) is None:
-        set_default_child_id(conn, child_id)  # 内部 commit で INSERT + settings を一括コミット
-    else:
-        conn.commit()
-    return child_id
+    """子を新規作成して id を返す。最初の子なら既定児に自動設定する。
+
+    既定児の有無チェック→設定が複合操作のため conn.lock で直列化する（Issue #33）。
+    """
+    with conn.lock:
+        cur = conn.execute(
+            "INSERT INTO children (name_alias, birthday) VALUES (?, ?)",
+            (name_alias, birthday),
+        )
+        child_id = cur.lastrowid
+        if get_default_child_id(conn) is None:
+            set_default_child_id(conn, child_id)  # 内部 commit で INSERT + settings を一括コミット
+        else:
+            conn.commit()
+        return child_id
 
 
 def list_children(conn: sqlite3.Connection) -> list[sqlite3.Row]:
@@ -117,16 +126,18 @@ def get_or_create_default_child(conn: sqlite3.Connection, seed_name: str) -> int
 
     起動時の結線で使う（KOTOLOG_DEFAULT_CHILD への実行時依存を撤廃）。冪等。
     get_default_child_id が存在確認済みのため重複チェック不要。
+    check→act の複合操作のため conn.lock で直列化する（Issue #33）。
     """
-    did = get_default_child_id(conn)
-    if did is not None:
-        return did
-    children = list_children(conn)
-    if children:
-        cid = children[0]["id"]
-        set_default_child_id(conn, cid)
-        return cid
-    return create_child(conn, seed_name)
+    with conn.lock:
+        did = get_default_child_id(conn)
+        if did is not None:
+            return did
+        children = list_children(conn)
+        if children:
+            cid = children[0]["id"]
+            set_default_child_id(conn, cid)
+            return cid
+        return create_child(conn, seed_name)
 
 
 # --- ユーザー管理（P9.3 / ADR-0006） ----------------------------------------
@@ -389,7 +400,11 @@ def check_rate_limit(
 def increment_rate_limit(
     conn: sqlite3.Connection, user_id: str, limit_type: str, window_hours: int = 1
 ) -> None:
-    """レート制限カウンターをインクリメント。ウィンドウが切れている場合はリセットする。"""
+    """レート制限カウンターをインクリメント。ウィンドウが切れている場合はリセットする。
+
+    ウィンドウ境界での SELECT→INSERT/UPDATE 分岐が複合操作のため、
+    並行呼び出しでの増分ロストを防ぐべく conn.lock で直列化する（Issue #33）。
+    """
     if not user_id:
         return
 
@@ -399,31 +414,32 @@ def increment_rate_limit(
     msg_inc = 1 if limit_type == "message" else 0
     llm_inc = 1 if limit_type == "llm_call" else 0
 
-    row = conn.execute(
-        "SELECT window_start FROM user_rate_limits WHERE line_user_id = ?",
-        (user_id,),
-    ).fetchone()
+    with conn.lock:
+        row = conn.execute(
+            "SELECT window_start FROM user_rate_limits WHERE line_user_id = ?",
+            (user_id,),
+        ).fetchone()
 
-    if row is None or (row["window_start"] < window_start_limit):
-        # 新規ウィンドウ作成、または期限切れウィンドウの上書き
-        conn.execute(
-            """
-            INSERT OR REPLACE INTO user_rate_limits
-            (line_user_id, message_count, llm_call_count, window_start, updated_at)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (user_id, msg_inc, llm_inc, now_str, now_str),
-        )
-    else:
-        # 既存ウィンドウ内でのインクリメント
-        conn.execute(
-            """
-            UPDATE user_rate_limits SET
-                message_count = message_count + ?,
-                llm_call_count = llm_call_count + ?,
-                updated_at = ?
-            WHERE line_user_id = ?
-            """,
-            (msg_inc, llm_inc, now_str, user_id),
-        )
-    conn.commit()
+        if row is None or (row["window_start"] < window_start_limit):
+            # 新規ウィンドウ作成、または期限切れウィンドウの上書き
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO user_rate_limits
+                (line_user_id, message_count, llm_call_count, window_start, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (user_id, msg_inc, llm_inc, now_str, now_str),
+            )
+        else:
+            # 既存ウィンドウ内でのインクリメント
+            conn.execute(
+                """
+                UPDATE user_rate_limits SET
+                    message_count = message_count + ?,
+                    llm_call_count = llm_call_count + ?,
+                    updated_at = ?
+                WHERE line_user_id = ?
+                """,
+                (msg_inc, llm_inc, now_str, user_id),
+            )
+        conn.commit()

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from typing import Any
 
 
@@ -44,6 +45,9 @@ class _LibsqlConn:
 
     def __init__(self, raw: Any) -> None:
         self._raw = raw
+        # 複数スレッドから同一接続を共有するため、read-then-write な複合操作を
+        # 呼び出し側で直列化するためのロック（Issue #33）。
+        self.lock = threading.RLock()
 
     def execute(self, sql: str, parameters: tuple | list = ()) -> _LibsqlCursor:
         if isinstance(parameters, list):
@@ -60,6 +64,14 @@ class _LibsqlConn:
         self._raw.close()
 
 
+class _KotoSqliteConnection(sqlite3.Connection):
+    """`lock` 属性を持たせるための sqlite3.Connection サブクラス（Issue #33）。
+
+    sqlite3.Connection は任意属性の代入を許さないため、素の Connection には
+    ロックを持たせられない。isinstance(conn, sqlite3.Connection) は維持される。
+    """
+
+
 def connect(db_url: str, auth_token: str | None = None) -> Any:
     """SQLite または Turso/libSQL 接続を返す。
 
@@ -73,7 +85,14 @@ def connect(db_url: str, auth_token: str | None = None) -> Any:
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
     # check_same_thread=False: webhook の BackgroundTask は別スレッドで動く(P2)
-    conn = sqlite3.connect(db_url, check_same_thread=False)
+    conn = sqlite3.connect(db_url, check_same_thread=False, factory=_KotoSqliteConnection)
     conn.row_factory = sqlite3.Row
+    # 複数スレッドから同一接続を共有するため、read-then-write な複合操作を
+    # 呼び出し側で直列化するためのロック（Issue #33）。
+    conn.lock = threading.RLock()
     conn.execute("PRAGMA foreign_keys = ON")
+    # WAL: 同時読み取りを妨げず、書き込み時の "database is locked" を抑える。
+    # busy_timeout: 書き込みロック競合時に即エラーにせず一定時間待つ。
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA busy_timeout = 5000")
     return conn
