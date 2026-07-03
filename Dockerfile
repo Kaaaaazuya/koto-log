@@ -1,17 +1,22 @@
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 
-WORKDIR /app
-
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 
+# Issue #36: Create non-root user early for security (before copying files)
+RUN useradd -m -u 1000 -s /sbin/nologin kotolog
+
+WORKDIR /app
+
 # 依存をソースより先にコピー（レイヤーキャッシュ有効化）
-COPY pyproject.toml uv.lock README.md ./
+COPY --chown=kotolog:kotolog pyproject.toml uv.lock README.md ./
 RUN uv sync --no-dev --frozen --no-install-project
 
 # ソースをコピーしてプロジェクト自体をインストール
-COPY src/ src/
+COPY --chown=kotolog:kotolog src/ src/
 RUN uv sync --no-dev --frozen
+
+USER kotolog
 
 # Render は PORT 環境変数を自動で設定する
 EXPOSE 8080
