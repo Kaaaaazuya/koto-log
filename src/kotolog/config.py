@@ -16,7 +16,7 @@ DEFAULT_DB_URL = "kotolog.db"
 DEFAULT_CHILD = "baby"
 DEFAULT_OLLAMA_BASE = "http://localhost:11434"
 DEFAULT_USER_MSG_LIMIT = 100  # messages per hour per user
-DEFAULT_USER_LLM_LIMIT = 50   # LLM calls per hour per user
+DEFAULT_USER_LLM_LIMIT = 50  # LLM calls per hour per user
 
 
 @dataclass(frozen=True)

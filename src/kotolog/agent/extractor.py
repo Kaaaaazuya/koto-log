@@ -94,6 +94,7 @@ def extract_records(
     # Issue #37: Check LLM call rate limit before extraction
     if line_user_id and config and conn:
         from kotolog.db import crud
+
         if not crud.check_rate_limit(conn, line_user_id, "llm_call", config.user_llm_limit):
             return [], None
 
@@ -110,6 +111,7 @@ def extract_records(
     # Issue #37: Increment LLM call counter after successful call
     if line_user_id and config and conn:
         from kotolog.db import crud
+
         crud.increment_rate_limit(conn, line_user_id, "llm_call")
 
     message = resp.choices[0].message

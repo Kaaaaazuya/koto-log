@@ -214,9 +214,8 @@ async def _handle_text_event(event: dict) -> None:
                 return
 
             # Issue #37: Check message rate limit
-            if (
-                agent.config
-                and not crud.check_rate_limit(conn, user_id, "message", agent.config.user_msg_limit)
+            if agent.config and not crud.check_rate_limit(
+                conn, user_id, "message", agent.config.user_msg_limit
             ):
                 reply_text = "メッセージの送信回数が多すぎます。しばらく待ってからお試しください。"
                 reply_token = event.get("replyToken", "")
