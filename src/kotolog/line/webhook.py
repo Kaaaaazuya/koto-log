@@ -45,11 +45,12 @@ async def lifespan(app: FastAPI):
             missing_vars.append("LINE_CHANNEL_SECRET")
         if not line_channel_access_token:
             missing_vars.append("LINE_CHANNEL_ACCESS_TOKEN")
-        logger.error(
-            f"LINE webhook cannot start: missing required environment variables: {', '.join(missing_vars)}. "
+        logger.warning(
+            f"LINE webhook is disabled: missing required environment variables: {', '.join(missing_vars)}. "
             "Set these variables to enable LINE message handling."
         )
-        raise RuntimeError(f"Missing required environment variables: {', '.join(missing_vars)}")
+        yield
+        return
 
     scheduler = start_scheduler()
     try:
@@ -141,11 +142,12 @@ async def webhook(
 ):
     """署名検証→即 200 OK、テキストイベントはバックグラウンドで処理。
 
-    Issue #31: LINE_CHANNEL_SECRET を必須環境変数として厳密に検証。
+    Issue #31: LINE_CHANNEL_SECRET と LINE_CHANNEL_ACCESS_TOKEN を必須環境変数として厳密に検証。
     """
     body = await request.body()
     channel_secret = os.environ.get("LINE_CHANNEL_SECRET", "").strip()
-    if not channel_secret:
+    access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "").strip()
+    if not channel_secret or not access_token:
         raise HTTPException(status_code=503, detail="LINE webhook not configured")
     if not _verify_signature(body, x_line_signature or "", channel_secret):
         raise HTTPException(status_code=401, detail="Invalid signature")
