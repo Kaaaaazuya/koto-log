@@ -23,6 +23,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from kotolog.db import crud
 from kotolog.line.admin import router as admin_router
 from kotolog.line.dashboard import router as dashboard_router
+from kotolog.line.security_headers import SecurityHeadersMiddleware
 
 load_dotenv()
 
@@ -62,6 +63,9 @@ app.add_middleware(
     https_only=_SESSION_COOKIE_SECURE,
     same_site="strict",
 )
+
+# Issue #35: Add HTTP security headers to all responses
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(dashboard_router)
 app.include_router(admin_router)
