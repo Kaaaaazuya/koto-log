@@ -177,7 +177,10 @@ class ToolExecutor:
             return day_start.isoformat(), now.isoformat()
         if period == "yesterday":
             y = day_start - timedelta(days=1)
-            end = day_start - timedelta(seconds=1)
+            # 1マイクロ秒引くことで昨日 23:59:59.999999 になる（day_start は microsecond=0）。
+            # 単純に 1 秒引くと末尾秒のレコード（マイクロ秒つき）が文字列比較で漏れるため避ける
+            # （レビュー指摘: custom 期間の end 境界と同種のバグ）。
+            end = day_start - timedelta(microseconds=1)
             return y.isoformat(), end.isoformat()
         if period == "last_24h":
             return (now - timedelta(hours=24)).isoformat(), now.isoformat()
@@ -200,7 +203,11 @@ class ToolExecutor:
                 end = date.fromisoformat(end_date)
             except ValueError as e:
                 raise ValueError(f"日付の形式が正しくない（YYYY-MM-DD で指定して）: {e}") from e
+            if start > end:
+                raise ValueError("開始日は終了日以前の日付を指定してください")
             start_dt = datetime(start.year, start.month, start.day, tzinfo=JST)
-            end_dt = datetime(end.year, end.month, end.day, 23, 59, 59, tzinfo=JST)
+            # started_at は isoformat() でマイクロ秒つきの絶対時刻として保存されるため、
+            # end 側もマイクロ秒最大値にしないと SQLite の文字列比較で末尾秒のレコードが漏れる
+            end_dt = datetime(end.year, end.month, end.day, 23, 59, 59, 999999, tzinfo=JST)
             return start_dt.isoformat(), end_dt.isoformat()
         raise ValueError(f"unknown period: {period}")

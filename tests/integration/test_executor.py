@@ -104,6 +104,39 @@ def test_query_records_custom_with_invalid_date_format_raises(executor):
         )
 
 
+def test_query_records_custom_start_after_end_raises(executor):
+    with pytest.raises(ValueError, match="開始日は終了日以前"):
+        executor.execute(
+            "query_records",
+            {"type": "feeding", "period": "custom", "start_date": "2026-06-05", "end_date": "2026-06-01"},
+        )
+
+
+def test_query_records_custom_includes_record_in_final_second_of_end_date(executor):
+    """end_date の最終秒（マイクロ秒つき）のレコードが文字列比較で漏れないことを確認する。"""
+    executor.execute(
+        "save_record",
+        {"type": "feeding", "amount": 100, "unit": "ml", "started_at": "2026-06-05T23:59:59.500000+09:00"},
+    )
+
+    result = executor.execute(
+        "query_records",
+        {"type": "feeding", "period": "custom", "start_date": "2026-06-05", "end_date": "2026-06-05"},
+    )
+    assert result["count"] == 1
+
+
+def test_query_records_yesterday_includes_record_in_final_second(executor):
+    """yesterday の end 境界も末尾秒のマイクロ秒つきレコードを含む必要がある。"""
+    executor.execute(
+        "save_record",
+        {"type": "feeding", "amount": 100, "unit": "ml", "started_at": "2026-06-17T23:59:59.500000+09:00"},
+    )
+
+    result = executor.execute("query_records", {"type": "feeding", "period": "yesterday"})
+    assert result["count"] == 1
+
+
 def test_update_last_record(executor):
     executor.execute("save_record", {"type": "feeding", "amount": 100, "unit": "ml", "started_at": "3時"})
     result = executor.execute(
