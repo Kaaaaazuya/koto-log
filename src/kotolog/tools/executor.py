@@ -199,8 +199,9 @@ class ToolExecutor:
             if not start_date or not end_date:
                 raise ValueError("custom には start_date と end_date の両方が必要")
             try:
-                start = date.fromisoformat(start_date)
-                end = date.fromisoformat(end_date)
+                # LLM が文字列以外（数値等）や前後空白つきで渡す可能性に備え、str化・strip してから解釈する
+                start = date.fromisoformat(str(start_date).strip())
+                end = date.fromisoformat(str(end_date).strip())
             except ValueError as e:
                 raise ValueError(f"日付の形式が正しくない（YYYY-MM-DD で指定して）: {e}") from e
             if start > end:

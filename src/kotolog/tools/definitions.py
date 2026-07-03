@@ -78,10 +78,12 @@ TOOLS = [
                     },
                     "start_date": {
                         "type": "string",
+                        "pattern": r"^\d{4}-\d{2}-\d{2}$",
                         "description": "period=custom のときの開始日（YYYY-MM-DD）。",
                     },
                     "end_date": {
                         "type": "string",
+                        "pattern": r"^\d{4}-\d{2}-\d{2}$",
                         "description": "period=custom のときの終了日（YYYY-MM-DD、この日を含む）。",
                     },
                 },

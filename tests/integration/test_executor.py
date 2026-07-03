@@ -137,6 +137,34 @@ def test_query_records_yesterday_includes_record_in_final_second(executor):
     assert result["count"] == 1
 
 
+def test_query_records_custom_strips_whitespace_from_dates(executor):
+    """前後に空白が入った日付文字列でも正しく解釈される。"""
+    executor.execute(
+        "save_record",
+        {"type": "feeding", "amount": 100, "unit": "ml", "started_at": "2026-06-03T09:00:00+09:00"},
+    )
+
+    result = executor.execute(
+        "query_records",
+        {
+            "type": "feeding",
+            "period": "custom",
+            "start_date": " 2026-06-01 ",
+            "end_date": " 2026-06-05 ",
+        },
+    )
+    assert result["count"] == 1
+
+
+def test_query_records_custom_with_non_string_date_raises_value_error(executor):
+    """文字列以外（bool等）が渡されても TypeError ではなく ValueError として扱う。"""
+    with pytest.raises(ValueError, match="日付の形式"):
+        executor.execute(
+            "query_records",
+            {"type": "feeding", "period": "custom", "start_date": True, "end_date": "2026-06-05"},
+        )
+
+
 def test_update_last_record(executor):
     executor.execute("save_record", {"type": "feeding", "amount": 100, "unit": "ml", "started_at": "3時"})
     result = executor.execute(
