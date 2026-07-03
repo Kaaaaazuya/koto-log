@@ -176,6 +176,19 @@ async def _daily_summary_job() -> None:
     await asyncio.to_thread(_run_daily_summary_push)
 
 
+def _run_processed_events_cleanup() -> None:
+    """毎日深夜、期限切れの processed_events（Issue #47）を削除する。"""
+    cfg = load_config()
+    conn = connect(cfg.db_url, cfg.turso_auth_token)
+    deleted = crud.cleanup_old_processed_events(conn)
+    if deleted:
+        print(f"[cleanup] removed {deleted} old processed_events rows", flush=True)
+
+
+async def _cleanup_job() -> None:
+    await asyncio.to_thread(_run_processed_events_cleanup)
+
+
 def start_scheduler() -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
@@ -185,6 +198,10 @@ def start_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(
         _daily_summary_job,
         CronTrigger(hour=21, minute=0, timezone="Asia/Tokyo"),
+    )
+    scheduler.add_job(
+        _cleanup_job,
+        CronTrigger(hour=3, minute=0, timezone="Asia/Tokyo"),
     )
     scheduler.start()
     return scheduler
