@@ -13,6 +13,9 @@ __pycache__/
 # Test / cache
 .pytest_cache/
 .ruff_cache/
+.coverage
+.coverage.*
+coverage.json
 
 # OS
 .DS_Store

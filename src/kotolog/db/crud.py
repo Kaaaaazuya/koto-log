@@ -320,7 +320,8 @@ def update_record(conn: KotoConnection, record_id: int, new_values: dict) -> boo
         return False
     set_clause = ", ".join(f"{k} = ?" for k in fields)
     params = [*fields.values(), _now(), record_id]
-    cur = conn.execute(f"UPDATE records SET {set_clause}, updated_at = ? WHERE id = ?", params)
+    # set_clause の列名は _UPDATABLE 許可リスト由来、値はすべて ? バインド（外部入力は含まない）
+    cur = conn.execute(f"UPDATE records SET {set_clause}, updated_at = ? WHERE id = ?", params)  # nosec B608
     conn.commit()
     return cur.rowcount > 0
 

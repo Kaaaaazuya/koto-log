@@ -8,9 +8,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint-and-test:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -30,3 +35,14 @@ jobs:
       - name: Coverage threshold (warn only)
         run: uv run coverage report --fail-under=80
         continue-on-error: true
+
+  docker-build:
+    name: Docker build (validate image)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # Dockerfile が壊れていないかを Render デプロイ前に検証（push はしない）
+      - name: Build image
+        run: docker build -t koto-log:ci .
