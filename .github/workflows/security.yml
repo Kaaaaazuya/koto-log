@@ -27,7 +27,9 @@ jobs:
           enable-cache: true
 
       - name: Export requirements
-        run: uv export --frozen --no-dev --format requirements-txt -o /tmp/requirements.txt
+        # --no-emit-project: 自プロジェクト（editable）を除外。含めると pip-audit の
+        # --require-hashes 相当の検証でハッシュ不可能として失敗する
+        run: uv export --frozen --no-dev --no-emit-project --format requirements-txt -o /tmp/requirements.txt
 
       - name: Audit dependencies
         uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
