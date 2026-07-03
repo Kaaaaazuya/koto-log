@@ -102,6 +102,22 @@ def build_daily_summary_text(today_str: str, records: list[dict]) -> str | None:
         if temps:
             lines.append(f"体温: 最高{max(temps):.1f}℃")
 
+    # Issue #39: 後から追加した記録種別もサマリー対象にする
+    if baby_food := [r for r in records if r["type"] == "baby_food"]:
+        lines.append(f"離乳食: {len(baby_food)}回")
+
+    if [r for r in records if r["type"] == "bath"]:
+        lines.append("お風呂: 済み")
+
+    if medicine := [r for r in records if r["type"] == "medicine"]:
+        lines.append(f"薬: {len(medicine)}回")
+
+    if hospital := [r for r in records if r["type"] == "hospital"]:
+        lines.append(f"病院: {len(hospital)}回")
+
+    if outing := [r for r in records if r["type"] == "outing"]:
+        lines.append(f"外出: {len(outing)}回")
+
     return "\n".join(lines)
 
 

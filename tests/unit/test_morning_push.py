@@ -183,3 +183,37 @@ def test_daily_summary_skips_missing_types():
     assert text is not None
     assert "睡眠" not in text
     assert "おむつ" not in text
+
+
+# --- Issue #39: 後から追加した記録種別のサマリー反映 -------------------------
+
+_BABY_FOOD = {"type": "baby_food", "sub_type": None, "amount": 50, "unit": "g"}
+_BATH = {"type": "bath", "sub_type": None, "amount": None, "unit": None}
+_MEDICINE = {"type": "medicine", "sub_type": "ビオフェルミン", "amount": None, "unit": None}
+_HOSPITAL = {"type": "hospital", "sub_type": "小児科", "amount": None, "unit": None}
+_OUTING = {"type": "outing", "sub_type": "公園", "amount": None, "unit": None}
+
+
+def test_daily_summary_includes_baby_food():
+    text = build_daily_summary_text("6/21", [_BABY_FOOD, _BABY_FOOD])
+    assert "離乳食: 2回" in text
+
+
+def test_daily_summary_includes_bath():
+    text = build_daily_summary_text("6/21", [_BATH])
+    assert "お風呂: 済み" in text
+
+
+def test_daily_summary_includes_medicine():
+    text = build_daily_summary_text("6/21", [_MEDICINE])
+    assert "薬: 1回" in text
+
+
+def test_daily_summary_includes_hospital():
+    text = build_daily_summary_text("6/21", [_HOSPITAL])
+    assert "病院: 1回" in text
+
+
+def test_daily_summary_includes_outing():
+    text = build_daily_summary_text("6/21", [_OUTING])
+    assert "外出: 1回" in text
