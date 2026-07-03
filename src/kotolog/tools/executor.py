@@ -88,7 +88,7 @@ class ToolExecutor:
         type_filter = args.get("type")
         if args["period"] == "latest":
             return self._latest(type_filter)
-        start, end = self._resolve_period(args["period"])
+        start, end = self._resolve_period(args["period"], args.get("start_date"), args.get("end_date"))
         sub_type_filter = normalize_sub_type(type_filter, args["sub_type"]) if args.get("sub_type") else None
         rows = crud.query_records(
             self.conn,
@@ -168,7 +168,9 @@ class ToolExecutor:
         return {"ok": True, "key": key, "value": value}
 
     # --- helpers ------------------------------------------------------------
-    def _resolve_period(self, period: str) -> tuple[str, str]:
+    def _resolve_period(
+        self, period: str, start_date: str | None = None, end_date: str | None = None
+    ) -> tuple[str, str]:
         now = self.now
         day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         if period == "today":
@@ -181,4 +183,24 @@ class ToolExecutor:
             return (now - timedelta(hours=24)).isoformat(), now.isoformat()
         if period == "last_7days":
             return (now - timedelta(days=7)).isoformat(), now.isoformat()
+        if period == "this_week":
+            # Issue #45: 週の始まりは月曜日
+            week_start = day_start - timedelta(days=day_start.weekday())
+            return week_start.isoformat(), now.isoformat()
+        if period == "this_month":
+            # Issue #45: 今月1日から
+            month_start = day_start.replace(day=1)
+            return month_start.isoformat(), now.isoformat()
+        if period == "custom":
+            # Issue #45: 任意の日付範囲（start_date/end_date は YYYY-MM-DD、end_date を含む）
+            if not start_date or not end_date:
+                raise ValueError("custom には start_date と end_date の両方が必要")
+            try:
+                start = date.fromisoformat(start_date)
+                end = date.fromisoformat(end_date)
+            except ValueError as e:
+                raise ValueError(f"日付の形式が正しくない（YYYY-MM-DD で指定して）: {e}") from e
+            start_dt = datetime(start.year, start.month, start.day, tzinfo=JST)
+            end_dt = datetime(end.year, end.month, end.day, 23, 59, 59, tzinfo=JST)
+            return start_dt.isoformat(), end_dt.isoformat()
         raise ValueError(f"unknown period: {period}")

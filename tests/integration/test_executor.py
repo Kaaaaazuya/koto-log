@@ -30,6 +30,80 @@ def test_query_records_aggregates(executor):
     assert result["total_amount"] == 220
 
 
+# --- Issue #45: 集計期間の拡張（今週・今月・任意の日付範囲） -----------------
+# executor フィクスチャの基準時刻は 2026-06-18(木) 10:00 JST
+
+
+def test_query_records_this_week_includes_monday_excludes_last_sunday(executor):
+    """今週（月曜始まり）の記録を含み、先週日曜以前は含まない。"""
+    # 今週月曜 2026-06-15 の記録
+    executor.execute(
+        "save_record",
+        {"type": "feeding", "amount": 100, "unit": "ml", "started_at": "2026-06-15T09:00:00+09:00"},
+    )
+    # 先週日曜 2026-06-14 の記録（週の範囲外）
+    executor.execute(
+        "save_record",
+        {"type": "feeding", "amount": 999, "unit": "ml", "started_at": "2026-06-14T09:00:00+09:00"},
+    )
+
+    result = executor.execute("query_records", {"type": "feeding", "period": "this_week"})
+    assert result["count"] == 1
+    assert result["total_amount"] == 100
+
+
+def test_query_records_this_month_includes_first_day_excludes_last_month(executor):
+    """今月1日からの記録を含み、先月末は含まない。"""
+    executor.execute(
+        "save_record",
+        {"type": "feeding", "amount": 100, "unit": "ml", "started_at": "2026-06-01T00:00:01+09:00"},
+    )
+    executor.execute(
+        "save_record",
+        {"type": "feeding", "amount": 999, "unit": "ml", "started_at": "2026-05-31T23:59:00+09:00"},
+    )
+
+    result = executor.execute("query_records", {"type": "feeding", "period": "this_month"})
+    assert result["count"] == 1
+    assert result["total_amount"] == 100
+
+
+def test_query_records_custom_range_is_inclusive_of_end_date(executor):
+    """custom は start_date 00:00 から end_date 23:59:59 まで（end_date を含む）。"""
+    executor.execute(
+        "save_record",
+        {"type": "feeding", "amount": 100, "unit": "ml", "started_at": "2026-06-01T00:00:00+09:00"},
+    )
+    executor.execute(
+        "save_record",
+        {"type": "feeding", "amount": 120, "unit": "ml", "started_at": "2026-06-05T23:59:00+09:00"},
+    )
+    executor.execute(
+        "save_record",
+        {"type": "feeding", "amount": 999, "unit": "ml", "started_at": "2026-06-06T00:00:01+09:00"},
+    )
+
+    result = executor.execute(
+        "query_records",
+        {"type": "feeding", "period": "custom", "start_date": "2026-06-01", "end_date": "2026-06-05"},
+    )
+    assert result["count"] == 2
+    assert result["total_amount"] == 220
+
+
+def test_query_records_custom_without_dates_raises(executor):
+    with pytest.raises(ValueError, match="start_date"):
+        executor.execute("query_records", {"type": "feeding", "period": "custom"})
+
+
+def test_query_records_custom_with_invalid_date_format_raises(executor):
+    with pytest.raises(ValueError, match="日付の形式"):
+        executor.execute(
+            "query_records",
+            {"type": "feeding", "period": "custom", "start_date": "2026/06/01", "end_date": "2026-06-05"},
+        )
+
+
 def test_update_last_record(executor):
     executor.execute("save_record", {"type": "feeding", "amount": 100, "unit": "ml", "started_at": "3時"})
     result = executor.execute(

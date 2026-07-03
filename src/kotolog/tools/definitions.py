@@ -11,7 +11,8 @@ from kotolog.types import RecordType
 
 RECORD_TYPES = [t.value for t in RecordType]
 # latest は「前回の◯◯はいつ？」用：直近1件＋経過時間を返す
-PERIODS = ["today", "yesterday", "last_24h", "last_7days", "latest"]
+# custom は start_date/end_date（YYYY-MM-DD）と併用する任意の日付範囲（Issue #45）
+PERIODS = ["today", "yesterday", "last_24h", "last_7days", "this_week", "this_month", "custom", "latest"]
 
 CONFIG_KEYS = ["due_date"]
 
@@ -69,7 +70,19 @@ TOOLS = [
                     "period": {
                         "type": "string",
                         "enum": PERIODS,
-                        "description": "集計期間。『前回はいつ？』には latest を使う（直近1件＋経過時間）。",
+                        "description": (
+                            "集計期間。『前回はいつ？』には latest（直近1件＋経過時間）。"
+                            "『6/1から6/15まで』のような任意の日付範囲には custom を使い、"
+                            "start_date/end_date も指定する。"
+                        ),
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "period=custom のときの開始日（YYYY-MM-DD）。",
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "period=custom のときの終了日（YYYY-MM-DD、この日を含む）。",
                     },
                 },
                 "required": ["period"],
