@@ -121,7 +121,8 @@ def _record(conn, version: int) -> None:
 def _has_core_tables(conn) -> bool:
     placeholders = ", ".join("?" for _ in _CORE_TABLES)
     row = conn.execute(
-        f"SELECT name FROM sqlite_master WHERE type='table' AND name IN ({placeholders}) LIMIT 1",
+        # placeholders は ? のみを連結したもの、テーブル名は _CORE_TABLES から ? バインド
+        f"SELECT name FROM sqlite_master WHERE type='table' AND name IN ({placeholders}) LIMIT 1",  # nosec B608
         _CORE_TABLES,
     ).fetchone()
     return row is not None
