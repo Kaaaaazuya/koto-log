@@ -136,11 +136,12 @@ def upsert_user(conn: sqlite3.Connection, line_user_id: str, nickname: str | Non
     """LINE ユーザーを登録または更新する。
 
     INSERT OR IGNORE で競合を原子的に回避。nickname=None は「変更しない」を意味する。
+    新規ユーザーは approved=0 で登録される（Issue #29）。
     """
     now = _now()
     conn.execute(
-        "INSERT OR IGNORE INTO users (line_user_id, notify_enabled, created_at, updated_at)"
-        " VALUES (?, 1, ?, ?)",
+        "INSERT OR IGNORE INTO users (line_user_id, notify_enabled, approved, created_at, updated_at)"
+        " VALUES (?, 1, 0, ?, ?)",
         (line_user_id, now, now),
     )
     if nickname is not None:
@@ -195,6 +196,42 @@ def set_user_current_child(conn: sqlite3.Connection, line_user_id: str, child_id
         (child_id, _now(), line_user_id),
     )
     conn.commit()
+
+
+# --- ユーザー承認管理（Issue #29）-----------------------------------------
+
+
+def approve_user(conn: sqlite3.Connection, line_user_id: str) -> None:
+    """ユーザーを承認する。"""
+    conn.execute(
+        "UPDATE users SET approved = 1, updated_at = ? WHERE line_user_id = ?",
+        (_now(), line_user_id),
+    )
+    conn.commit()
+
+
+def reject_user(conn: sqlite3.Connection, line_user_id: str) -> None:
+    """ユーザーを却下（削除）する。"""
+    conn.execute("DELETE FROM users WHERE line_user_id = ?", (line_user_id,))
+    conn.commit()
+
+
+def is_user_approved(conn: sqlite3.Connection, line_user_id: str) -> bool:
+    """ユーザーが承認されているかチェックする。見つからない場合は False。"""
+    row = conn.execute("SELECT approved FROM users WHERE line_user_id = ?", (line_user_id,)).fetchone()
+    return row is not None and row["approved"] == 1
+
+
+def get_user(conn: sqlite3.Connection, line_user_id: str) -> sqlite3.Row | None:
+    """承認済みのユーザーを取得する。未承認または見つからない場合は None。"""
+    return conn.execute(
+        "SELECT * FROM users WHERE line_user_id = ? AND approved = 1", (line_user_id,)
+    ).fetchone()
+
+
+def list_pending_approvals(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """未承認（approved=0）のユーザーを返す。作成日時昇順。"""
+    return conn.execute("SELECT * FROM users WHERE approved = 0 ORDER BY created_at ASC").fetchall()
 
 
 def insert_record(
