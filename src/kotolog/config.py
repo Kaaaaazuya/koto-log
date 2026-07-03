@@ -41,8 +41,11 @@ def load_config() -> Config:
     api_key = os.getenv("KOTOLOG_API_KEY") or None
 
     def _get_int(key: str, default: int) -> int:
+        val = os.getenv(key)
+        if val is None:
+            return default
         try:
-            return int(os.getenv(key, default))
+            return int(val)
         except ValueError:
             return default
 

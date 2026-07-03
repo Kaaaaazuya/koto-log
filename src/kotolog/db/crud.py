@@ -371,6 +371,7 @@ def check_rate_limit(
         return True
 
     now = datetime.now(JST)
+    now_str = now.isoformat()
     window_start = (now - timedelta(hours=window_hours)).isoformat()
 
     row = conn.execute(
@@ -384,14 +385,13 @@ def check_rate_limit(
             "INSERT OR REPLACE INTO user_rate_limits"
             "(line_user_id, message_count, llm_call_count, window_start, updated_at)"
             "VALUES (?, ?, ?, ?, ?)",
-            (user_id, 0, 0, now.isoformat(), _now()),
+            (user_id, 0, 0, now_str, now_str),
         )
         conn.commit()
-        return True
-
-    # 現在のカウントをチェック
-    count_key = "message_count" if limit_type == "message" else "llm_call_count"
-    current_count = row[count_key]
+        current_count = 0
+    else:
+        count_key = "message_count" if limit_type == "message" else "llm_call_count"
+        current_count = row[count_key]
 
     return current_count < max_count
 
@@ -402,32 +402,19 @@ def increment_rate_limit(conn: sqlite3.Connection, user_id: str, limit_type: str
         return
 
     now = datetime.now(JST)
-    count_key = "message_count" if limit_type == "message" else "llm_call_count"
-    other_key = (
-        "llm_call_count" if limit_type == "message" else "message_count"
+    now_str = now.isoformat()
+    msg_inc = 1 if limit_type == "message" else 0
+    llm_inc = 1 if limit_type == "llm_call" else 0
+
+    conn.execute(
+        """
+        INSERT INTO user_rate_limits (line_user_id, message_count, llm_call_count, window_start, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(line_user_id) DO UPDATE SET
+            message_count = message_count + excluded.message_count,
+            llm_call_count = llm_call_count + excluded.llm_call_count,
+            updated_at = excluded.updated_at
+        """,
+        (user_id, msg_inc, llm_inc, now_str, now_str),
     )
-
-    # 既存レコードをインクリメント、なければ新規作成
-    row = conn.execute(
-        f"SELECT {count_key} FROM user_rate_limits WHERE line_user_id = ?",
-        (user_id,),
-    ).fetchone()
-
-    if row is not None:
-        conn.execute(
-            f"UPDATE user_rate_limits SET {count_key} = {count_key} + 1, updated_at = ?"
-            "WHERE line_user_id = ?",
-            (_now(), user_id),
-        )
-    else:
-        values = {"message_count": 1 if limit_type == "message" else 0,
-                  "llm_call_count": 1 if limit_type == "llm_call" else 0}
-        conn.execute(
-            "INSERT INTO user_rate_limits"
-            "(line_user_id, message_count, llm_call_count, window_start, updated_at)"
-            "VALUES (?, ?, ?, ?, ?)",
-            (user_id, values["message_count"], values["llm_call_count"],
-             now.isoformat(), _now()),
-        )
-
     conn.commit()
