@@ -157,7 +157,7 @@ class ToolExecutor:
         key, value = args["key"], args["value"]
         # Issue #30: Validate that only permitted config keys can be set
         if key not in CONFIG_KEYS:
-            allowed = ', '.join(CONFIG_KEYS)
+            allowed = ", ".join(CONFIG_KEYS)
             return {"ok": False, "reason": f"Invalid config key: {key}. Allowed: {allowed}"}
         if key == "due_date":
             try:

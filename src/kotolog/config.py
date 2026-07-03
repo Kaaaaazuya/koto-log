@@ -45,6 +45,7 @@ def load_config() -> Config:
     # LINE webhook を動作させるには両者が必要（署名検証・返信送信）
     if not line_channel_secret or not line_channel_access_token:
         import logging
+
         logger = logging.getLogger(__name__)
         logger.warning(
             "LINE webhook is disabled: LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN must both be set. "
