@@ -42,7 +42,16 @@ app = FastAPI(lifespan=lifespan)
 
 # Session middleware for cookie-based authentication (Issue #28)
 # Use a strong secret key from environment or generate a random one
-_SESSION_SECRET = os.environ.get("SESSION_SECRET_KEY", secrets.token_urlsafe(32))
+_SESSION_SECRET = os.environ.get("SESSION_SECRET_KEY")
+if not _SESSION_SECRET:
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.warning(
+        "SESSION_SECRET_KEY not set; generating random key. "
+        "Sessions will be lost on server restart. Set SESSION_SECRET_KEY in production."
+    )
+    _SESSION_SECRET = secrets.token_urlsafe(32)
 _SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "true").lower() == "true"
 app.add_middleware(
     SessionMiddleware,

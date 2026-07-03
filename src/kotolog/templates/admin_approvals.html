@@ -67,7 +67,7 @@
               <button type="submit" class="btn btn-primary">承認</button>
             </form>
             <form method="POST" action="/admin/approvals/{{ u.line_user_id }}/reject?token={{ token }}" class="inline-form" style="display: inline;"
-                  onsubmit="return confirm('{{ u.nickname or u.line_user_id }} を却下しますか？')">
+                  onsubmit="return confirm({{ (u.nickname or u.line_user_id) | tojson }} + ' を却下しますか？')">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button type="submit" class="btn btn-danger">却下</button>
             </form>
