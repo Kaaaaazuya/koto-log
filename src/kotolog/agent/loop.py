@@ -115,9 +115,20 @@ class Agent:
         """1 ターンを処理し、ユーザーへ返す文字列を返す。"""
         # この handle() 内の全 LLM 呼び出し（extract / loop）を 1 トレースに紐付ける。
         new_trace_id()
-        extracted, child_name_hint = extract_records(
-            user_text, self.client, conn=self.conn, line_user_id=line_user_id, config=self.config
-        )
+
+        # Issue #37: Check LLM call rate limit at the start to avoid unnecessary work
+        if (
+            line_user_id
+            and self.config
+            and not crud.check_rate_limit(self.conn, line_user_id, "llm_call", self.config.user_llm_limit)
+        ):
+            return "申し訳ありません。LLM呼び出しの上限に達しました。しばらく待ってからお試しください。"
+
+        extracted, child_name_hint = extract_records(user_text, self.client)
+
+        # Issue #37: Increment LLM call counter after extraction
+        if line_user_id and self.config:
+            crud.increment_rate_limit(self.conn, line_user_id, "llm_call")
         try:
             child_id = crud.resolve_child_id(
                 self.conn, line_user_id=line_user_id, child_name_hint=child_name_hint
@@ -146,19 +157,11 @@ class Agent:
         messages.append({"role": "user", "content": user_text})
 
         for _ in range(self.max_iters):
-            # Issue #37: Check LLM call rate limit
-            if (
-                line_user_id
-                and self.config
-                and not crud.check_rate_limit(self.conn, line_user_id, "llm_call", self.config.user_llm_limit)
-            ):
-                return "申し訳ありません。LLM呼び出しの上限に達しました。しばらく待ってからお試しください。"
-
             resp = self.client.complete(messages, tools=TOOLS, operation="loop")
             message = resp.choices[0].message
             calls = _extract_calls(message)
 
-            # Issue #37: Increment LLM call counter after successful call
+            # Issue #37: Increment LLM call counter after each loop iteration
             if line_user_id and self.config:
                 crud.increment_rate_limit(self.conn, line_user_id, "llm_call")
 

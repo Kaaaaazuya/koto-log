@@ -78,26 +78,13 @@ _EXTRACT_SYSTEM = (
 _TYPE_LABELS = RECORD_TYPE_LABELS
 
 
-def extract_records(
-    text: str,
-    llm_client,
-    conn=None,
-    line_user_id: str | None = None,
-    config=None,
-) -> tuple[list[dict], str | None]:
+def extract_records(text: str, llm_client) -> tuple[list[dict], str | None]:
     """テキストから育児記録リストを抽出する。
 
     Returns:
         (records, child_name): records は抽出された記録リスト（記録でない場合は空リスト）、
         child_name はユーザーが明示した対象児名（未指定なら None）。
     """
-    # Issue #37: Check LLM call rate limit before extraction
-    if line_user_id and config and conn:
-        from kotolog.db import crud
-
-        if not crud.check_rate_limit(conn, line_user_id, "llm_call", config.user_llm_limit):
-            return [], None
-
     resp = llm_client.complete(
         messages=[
             {"role": "system", "content": _EXTRACT_SYSTEM},
@@ -107,12 +94,6 @@ def extract_records(
         tool_choice={"type": "function", "function": {"name": "extract_records"}},
         operation="extract",
     )
-
-    # Issue #37: Increment LLM call counter after successful call
-    if line_user_id and config and conn:
-        from kotolog.db import crud
-
-        crud.increment_rate_limit(conn, line_user_id, "llm_call")
 
     message = resp.choices[0].message
     tool_calls = getattr(message, "tool_calls", None)

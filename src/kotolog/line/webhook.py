@@ -208,7 +208,7 @@ async def _handle_text_event(event: dict) -> None:
                     "お手数ですがお待ちください。"
                 )
                 reply_token = event.get("replyToken", "")
-                access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+                access_token = agent.config.line_channel_access_token or ""
                 await asyncio.to_thread(reply_mod.send_reply, reply_token, reply_text, access_token)
                 crud.mark_processed(conn, event_id)
                 return
@@ -219,7 +219,7 @@ async def _handle_text_event(event: dict) -> None:
             ):
                 reply_text = "メッセージの送信回数が多すぎます。しばらく待ってからお試しください。"
                 reply_token = event.get("replyToken", "")
-                access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+                access_token = agent.config.line_channel_access_token or ""
                 await asyncio.to_thread(reply_mod.send_reply, reply_token, reply_text, access_token)
                 return
 
@@ -236,7 +236,7 @@ async def _handle_text_event(event: dict) -> None:
             crud.increment_rate_limit(conn, user_id, "message")
 
         reply_token = event.get("replyToken", "")
-        access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+        access_token = agent.config.line_channel_access_token or ""
         await asyncio.to_thread(reply_mod.send_reply, reply_token, reply_text, access_token)
     except Exception:
         traceback.print_exc()
