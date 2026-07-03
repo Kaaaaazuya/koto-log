@@ -23,6 +23,8 @@ from kotolog.tools.executor import ToolExecutor
 JST = timezone(timedelta(hours=9))
 
 MAX_ITERS = 5
+# Issue #38: 会話文脈として保持する往復数（history はこの件数×2 メッセージまでに切り詰める）
+MAX_CONTEXT_TURNS = 3
 
 SYSTEM_PROMPT = """育児記録アシスタント。授乳・睡眠・おむつなどをツールで保存・集計・修正する。
 
@@ -124,6 +126,11 @@ class Agent:
         ):
             return "申し訳ありません。LLM呼び出しの上限に達しました。しばらく待ってからお試しください。"
 
+        # Issue #38: history が明示指定されなければ、直近の会話文脈をDBから読み込む。
+        # LLMが聞き返した後の返答も、この文脈があって初めて正しく解釈できる。
+        if history is None and line_user_id:
+            history = crud.get_session_context(self.conn, line_user_id)
+
         extracted, child_name_hint = extract_records(user_text, self.client)
 
         # Issue #37: Increment LLM call counter after extraction
@@ -149,7 +156,10 @@ class Agent:
             if saved:
                 children = crud.list_children(self.conn)
                 display_name = crud.get_child_name(self.conn, child_id) if len(children) > 1 else None
-                return format_confirmation(saved, child_name=display_name)
+                reply = format_confirmation(saved, child_name=display_name)
+                if line_user_id:
+                    self._save_session_context(line_user_id, history, user_text, reply)
+                return reply
 
         messages: list[dict] = [{"role": "system", "content": self.system_prompt}]
         if history:
@@ -166,7 +176,10 @@ class Agent:
                 crud.increment_rate_limit(self.conn, line_user_id, "llm_call")
 
             if not calls:
-                return message.content or ""
+                reply = message.content or ""
+                if line_user_id:
+                    self._save_session_context(line_user_id, history, user_text, reply)
+                return reply
 
             messages.append(self._assistant_message(message, calls))
             for call in calls:
@@ -179,7 +192,24 @@ class Agent:
                     }
                 )
 
-        return "すみません、うまく処理できませんでした。もう一度お願いします。"
+        reply = "すみません、うまく処理できませんでした。もう一度お願いします。"
+        if line_user_id:
+            self._save_session_context(line_user_id, history, user_text, reply)
+        return reply
+
+    def _save_session_context(
+        self,
+        line_user_id: str,
+        prior_history: list[dict] | None,
+        user_text: str,
+        reply_text: str,
+    ) -> None:
+        """今回の往復を会話文脈に追加し、直近 MAX_CONTEXT_TURNS 往復分に切り詰めて保存する。"""
+        context = (prior_history or []) + [
+            {"role": "user", "content": user_text},
+            {"role": "assistant", "content": reply_text},
+        ]
+        crud.set_session_context(self.conn, line_user_id, context[-(MAX_CONTEXT_TURNS * 2) :])
 
     def _run_tool(self, call: _Call, executor: ToolExecutor) -> dict:
         # 未知ツールや不正引数でループを落とさず、結果としてLLMに戻す

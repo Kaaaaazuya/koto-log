@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
@@ -342,6 +343,39 @@ def set_setting(conn: KotoConnection, key: str, value: str) -> None:
     conn.execute(
         "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
         (key, value),
+    )
+    conn.commit()
+
+
+# --- 会話文脈（Issue #38） ---------------------------------------------------
+
+
+def get_session_context(conn: KotoConnection, line_user_id: str) -> list[dict] | None:
+    """直近の会話文脈（Agent.handle の history 用）を取得する。無ければ None。"""
+    row = conn.execute(
+        "SELECT recent_context FROM sessions WHERE line_user_id = ?", (line_user_id,)
+    ).fetchone()
+    if row is None or not row["recent_context"]:
+        return None
+    try:
+        data = json.loads(row["recent_context"])
+    except (TypeError, ValueError):
+        return None
+    return data if isinstance(data, list) else None
+
+
+def set_session_context(conn: KotoConnection, line_user_id: str, context: list[dict]) -> None:
+    """直近の会話文脈を保存する（既存レコードは上書き）。"""
+    now = _now()
+    conn.execute(
+        """
+        INSERT INTO sessions (line_user_id, recent_context, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(line_user_id) DO UPDATE SET
+            recent_context = excluded.recent_context,
+            updated_at = excluded.updated_at
+        """,
+        (line_user_id, json.dumps(context, ensure_ascii=False), now),
     )
     conn.commit()
 
