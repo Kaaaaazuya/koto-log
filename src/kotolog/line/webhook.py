@@ -93,6 +93,9 @@ app.include_router(admin_router)
 
 _HELP_COMMANDS = {"操作一覧", "help", "ヘルプ", "?", "？"}
 
+# Issue #40: 処理中に例外が起きた場合にユーザーへ返す簡易案内
+_ERROR_REPLY_TEXT = "エラーが発生しました。しばらくしてからもう一度お試しください。"
+
 _HELP_TEXT = """\
 操作一覧
 
@@ -183,7 +186,11 @@ def _try_switch_child(conn, user_id: str | None, text: str) -> str | None:
 
 
 async def _handle_text_event(event: dict) -> None:
-    """冪等チェック → Agent 処理 → Reply API。"""
+    """冪等チェック → Agent 処理 → Reply API。
+
+    Issue #40: 途中で例外が発生した場合もユーザーが無反応に見えないよう、
+    簡易な案内メッセージを返信する。
+    """
     import traceback
 
     from kotolog.line import reply as reply_mod
@@ -240,3 +247,10 @@ async def _handle_text_event(event: dict) -> None:
         await asyncio.to_thread(reply_mod.send_reply, reply_token, reply_text, access_token)
     except Exception:
         traceback.print_exc()
+        try:
+            reply_token = event.get("replyToken", "")
+            access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+            if reply_token and access_token:
+                await asyncio.to_thread(reply_mod.send_reply, reply_token, _ERROR_REPLY_TEXT, access_token)
+        except Exception:
+            traceback.print_exc()
