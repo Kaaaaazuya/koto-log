@@ -88,7 +88,7 @@ class ToolExecutor:
         type_filter = args.get("type")
         if args["period"] == "latest":
             return self._latest(type_filter)
-        start, end = self._resolve_period(args["period"])
+        start, end = self._resolve_period(args["period"], args.get("start_date"), args.get("end_date"))
         sub_type_filter = normalize_sub_type(type_filter, args["sub_type"]) if args.get("sub_type") else None
         rows = crud.query_records(
             self.conn,
@@ -168,17 +168,47 @@ class ToolExecutor:
         return {"ok": True, "key": key, "value": value}
 
     # --- helpers ------------------------------------------------------------
-    def _resolve_period(self, period: str) -> tuple[str, str]:
+    def _resolve_period(
+        self, period: str, start_date: str | None = None, end_date: str | None = None
+    ) -> tuple[str, str]:
         now = self.now
         day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         if period == "today":
             return day_start.isoformat(), now.isoformat()
         if period == "yesterday":
             y = day_start - timedelta(days=1)
-            end = day_start - timedelta(seconds=1)
+            # 1マイクロ秒引くことで昨日 23:59:59.999999 になる（day_start は microsecond=0）。
+            # 単純に 1 秒引くと末尾秒のレコード（マイクロ秒つき）が文字列比較で漏れるため避ける
+            # （レビュー指摘: custom 期間の end 境界と同種のバグ）。
+            end = day_start - timedelta(microseconds=1)
             return y.isoformat(), end.isoformat()
         if period == "last_24h":
             return (now - timedelta(hours=24)).isoformat(), now.isoformat()
         if period == "last_7days":
             return (now - timedelta(days=7)).isoformat(), now.isoformat()
+        if period == "this_week":
+            # Issue #45: 週の始まりは月曜日
+            week_start = day_start - timedelta(days=day_start.weekday())
+            return week_start.isoformat(), now.isoformat()
+        if period == "this_month":
+            # Issue #45: 今月1日から
+            month_start = day_start.replace(day=1)
+            return month_start.isoformat(), now.isoformat()
+        if period == "custom":
+            # Issue #45: 任意の日付範囲（start_date/end_date は YYYY-MM-DD、end_date を含む）
+            if not start_date or not end_date:
+                raise ValueError("custom には start_date と end_date の両方が必要")
+            try:
+                # LLM が文字列以外（数値等）や前後空白つきで渡す可能性に備え、str化・strip してから解釈する
+                start = date.fromisoformat(str(start_date).strip())
+                end = date.fromisoformat(str(end_date).strip())
+            except ValueError as e:
+                raise ValueError(f"日付の形式が正しくない（YYYY-MM-DD で指定して）: {e}") from e
+            if start > end:
+                raise ValueError("開始日は終了日以前の日付を指定してください")
+            start_dt = datetime(start.year, start.month, start.day, tzinfo=JST)
+            # started_at は isoformat() でマイクロ秒つきの絶対時刻として保存されるため、
+            # end 側もマイクロ秒最大値にしないと SQLite の文字列比較で末尾秒のレコードが漏れる
+            end_dt = datetime(end.year, end.month, end.day, 23, 59, 59, 999999, tzinfo=JST)
+            return start_dt.isoformat(), end_dt.isoformat()
         raise ValueError(f"unknown period: {period}")
