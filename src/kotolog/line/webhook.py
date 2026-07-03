@@ -252,6 +252,8 @@ async def _handle_text_event(event: dict) -> None:
                 reply_token = event.get("replyToken", "")
                 access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
                 if reply_token and access_token:
-                    await asyncio.to_thread(reply_mod.send_reply, reply_token, _ERROR_REPLY_TEXT, access_token)
+                    await asyncio.to_thread(
+                        reply_mod.send_reply, reply_token, _ERROR_REPLY_TEXT, access_token
+                    )
             except Exception:
                 traceback.print_exc()
