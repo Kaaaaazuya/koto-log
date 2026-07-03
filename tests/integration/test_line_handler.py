@@ -137,6 +137,48 @@ def test_non_text_event_is_ignored(webhook_client):
     assert len(sent) == 0
 
 
+# --- Issue #40: エラー時にもユーザーへ返信する ------------------------------
+
+
+def test_agent_error_still_sends_reply_to_user(monkeypatch, conn, child_id):
+    """agent.handle が例外を送出しても、ユーザーへ簡易案内が返信される。"""
+    import kotolog.line.reply as reply_mod
+    import kotolog.line.webhook as wh
+    from kotolog.db import crud as crud_mod
+
+    class BoomAgent:
+        conn = None
+        config = None
+
+        def handle(self, *a, **kw):
+            raise RuntimeError("boom")
+
+    boom = BoomAgent()
+    boom.conn = conn
+
+    crud_mod.upsert_user(conn, "U_test")
+    crud_mod.approve_user(conn, "U_test")
+
+    sent: list[dict] = []
+
+    def mock_send_reply(reply_token: str, text: str, access_token: str) -> None:
+        sent.append({"reply_token": reply_token, "text": text})
+
+    monkeypatch.setattr(wh, "_agent", boom)
+    monkeypatch.setattr(reply_mod, "send_reply", mock_send_reply)
+    monkeypatch.setenv("LINE_CHANNEL_SECRET", CHANNEL_SECRET)
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", ACCESS_TOKEN)
+
+    client = TestClient(wh.app, raise_server_exceptions=True)
+    body = _text_event("こんにちは")
+    resp = client.post("/webhook", content=body, headers={"X-Line-Signature": _sign(body)})
+
+    assert resp.status_code == 200
+    assert len(sent) == 1
+    assert sent[0]["reply_token"] == "rtok_001"
+    assert sent[0]["text"] == wh._ERROR_REPLY_TEXT
+
+
 # --- T9.3.1: upsert_user 自動登録 -------------------------------------------
 
 
