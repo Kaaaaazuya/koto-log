@@ -114,6 +114,13 @@ def test_cleanup_old_processed_events_default_retention_is_seven_days(conn):
     assert deleted == 1
 
 
+@pytest.mark.parametrize("bad_value", [0, -1, -100])
+def test_cleanup_old_processed_events_rejects_non_positive_retention(conn, bad_value):
+    """older_than_days が 0 以下だと全件（または未来分まで）削除しかねないため拒否する。"""
+    with pytest.raises(ValueError, match="older_than_days"):
+        crud.cleanup_old_processed_events(conn, older_than_days=bad_value)
+
+
 # --- T2.3: webhook → Agent → reply の配線 -----------------------------------
 
 

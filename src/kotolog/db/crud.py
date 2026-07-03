@@ -404,6 +404,8 @@ def cleanup_old_processed_events(conn: KotoConnection, older_than_days: int = 7)
     LINE webhook の再送は短時間しか起こらないため、この期間を過ぎたレコードは
     冪等化の役目を終えており安全に削除できる。
     """
+    if older_than_days < 1:
+        raise ValueError("older_than_days must be at least 1")
     threshold = (datetime.now(JST) - timedelta(days=older_than_days)).isoformat()
     cur = conn.execute("DELETE FROM processed_events WHERE created_at < ?", (threshold,))
     conn.commit()
