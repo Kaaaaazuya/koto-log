@@ -94,6 +94,7 @@ def extract_records(text: str, llm_client) -> tuple[list[dict], str | None]:
         tool_choice={"type": "function", "function": {"name": "extract_records"}},
         operation="extract",
     )
+
     message = resp.choices[0].message
     tool_calls = getattr(message, "tool_calls", None)
     if not tool_calls:

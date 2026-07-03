@@ -350,3 +350,80 @@ def mark_processed(conn: sqlite3.Connection, event_id: str) -> None:
         (event_id, _now()),
     )
     conn.commit()
+
+
+# --- レート制限・コスト管理（Issue #37） -------------------------------------------
+
+
+def check_rate_limit(
+    conn: sqlite3.Connection,
+    user_id: str,
+    limit_type: str,
+    max_count: int,
+    window_hours: int = 1,
+) -> bool:
+    """レート制限チェック。制限内なら True、超過なら False を返す（読み取り専用）。
+
+    limit_type: "message" または "llm_call"
+    window_hours: 制限をリセットする時間ウィンドウ（時間）
+    """
+    if not user_id:
+        return True
+
+    now = datetime.now(JST)
+    window_start = (now - timedelta(hours=window_hours)).isoformat()
+
+    row = conn.execute(
+        "SELECT * FROM user_rate_limits WHERE line_user_id = ?",
+        (user_id,),
+    ).fetchone()
+
+    # レコードがない、またはウィンドウ外の場合は制限内（カウント0）とみなす
+    if row is None or (row["window_start"] < window_start):
+        return True
+
+    count_key = "message_count" if limit_type == "message" else "llm_call_count"
+    return row[count_key] < max_count
+
+
+def increment_rate_limit(
+    conn: sqlite3.Connection, user_id: str, limit_type: str, window_hours: int = 1
+) -> None:
+    """レート制限カウンターをインクリメント。ウィンドウが切れている場合はリセットする。"""
+    if not user_id:
+        return
+
+    now = datetime.now(JST)
+    now_str = now.isoformat()
+    window_start_limit = (now - timedelta(hours=window_hours)).isoformat()
+    msg_inc = 1 if limit_type == "message" else 0
+    llm_inc = 1 if limit_type == "llm_call" else 0
+
+    row = conn.execute(
+        "SELECT window_start FROM user_rate_limits WHERE line_user_id = ?",
+        (user_id,),
+    ).fetchone()
+
+    if row is None or (row["window_start"] < window_start_limit):
+        # 新規ウィンドウ作成、または期限切れウィンドウの上書き
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO user_rate_limits
+            (line_user_id, message_count, llm_call_count, window_start, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (user_id, msg_inc, llm_inc, now_str, now_str),
+        )
+    else:
+        # 既存ウィンドウ内でのインクリメント
+        conn.execute(
+            """
+            UPDATE user_rate_limits SET
+                message_count = message_count + ?,
+                llm_call_count = llm_call_count + ?,
+                updated_at = ?
+            WHERE line_user_id = ?
+            """,
+            (msg_inc, llm_inc, now_str, user_id),
+        )
+    conn.commit()
