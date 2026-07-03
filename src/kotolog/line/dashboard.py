@@ -121,12 +121,13 @@ async def dashboard(request: Request, token: str | None = None, days: int = 7):
                     pass
         return round(total, 1)
 
-    feedings_today = _day_records(RecordType.FEEDING, day=now)
-    sleeps_today = _day_records(RecordType.SLEEP, day=now)
-    diapers_today = _day_records(RecordType.DIAPER, day=now)
-
-    # 今日のタイムライン（Issue #39: 種別を限定せず全カテゴリを取得し時系列降順に並べる）
+    # 今日のタイムライン（Issue #39: 種別を限定せず全カテゴリを一度に取得する）。
+    # レビュー指摘: feeding/sleep/diaper は個別クエリせず、この結果をメモリ上でフィルタする。
     _all_today = [dict(r) for r in _day_records(None, day=now)]
+    feedings_today = [r for r in _all_today if r["type"] == RecordType.FEEDING]
+    sleeps_today = [r for r in _all_today if r["type"] == RecordType.SLEEP]
+    diapers_today = [r for r in _all_today if r["type"] == RecordType.DIAPER]
+
     for _r in _all_today:
         _r["icon"] = _ICONS.get(_r["type"], "📝")
         _r["type_label"] = _TYPE_LABELS.get(_r["type"], _r["type"])
@@ -160,9 +161,9 @@ async def dashboard(request: Request, token: str | None = None, days: int = 7):
         request,
         "dashboard.html",
         {
-            "feedings_today": [dict(r) for r in feedings_today],
-            "sleeps_today": [dict(r) for r in sleeps_today],
-            "diapers_today": [dict(r) for r in diapers_today],
+            "feedings_today": feedings_today,
+            "sleeps_today": sleeps_today,
+            "diapers_today": diapers_today,
             "timeline_today": timeline_today,
             "sleep_today_str": sleep_today_str,
             "feeding_summaries": feeding_summaries,
