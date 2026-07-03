@@ -7,7 +7,23 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import Any
+import threading
+from typing import Any, Protocol
+
+
+class KotoConnection(Protocol):
+    """sqlite3 / libsql の両実装が満たす接続インターフェース（Issue #33）。
+
+    `sqlite3.Connection` は `_LibsqlConn` のスーパークラスではなく、また
+    `lock` 属性も持たないため、crud.py の型ヒントにはこの Protocol を使う。
+    """
+
+    lock: threading.RLock
+
+    def execute(self, sql: str, parameters: tuple | list = ...) -> Any: ...
+    def executescript(self, sql: str) -> Any: ...
+    def commit(self) -> None: ...
+    def close(self) -> None: ...
 
 
 class _LibsqlCursor:
@@ -44,20 +60,52 @@ class _LibsqlConn:
 
     def __init__(self, raw: Any) -> None:
         self._raw = raw
+        # 単一接続を複数スレッドから共有するため、個々の execute/commit も含めて
+        # 全ての DB 操作を直列化するロック（Issue #33）。RLock なので、
+        # crud.py 側の複合操作（with conn.lock: ...）内から呼んでも再入可能。
+        self.lock = threading.RLock()
 
     def execute(self, sql: str, parameters: tuple | list = ()) -> _LibsqlCursor:
         if isinstance(parameters, list):
             parameters = tuple(parameters)
-        return _LibsqlCursor(self._raw.execute(sql, parameters))
+        with self.lock:
+            return _LibsqlCursor(self._raw.execute(sql, parameters))
 
     def executescript(self, sql: str) -> None:
-        self._raw.executescript(sql)
+        with self.lock:
+            self._raw.executescript(sql)
 
     def commit(self) -> None:
-        self._raw.commit()
+        with self.lock:
+            self._raw.commit()
 
     def close(self) -> None:
         self._raw.close()
+
+
+class _KotoSqliteConnection(sqlite3.Connection):
+    """`lock` 属性を持たせ、全 DB 操作を自動的に直列化する sqlite3.Connection サブクラス（Issue #33）。
+
+    sqlite3.Connection は任意属性の代入を許さないためサブクラス化して lock を持たせる
+    （isinstance(conn, sqlite3.Connection) は維持される）。単一接続を複数スレッドから
+    共有するため、read-then-write の複合操作だけでなく execute() 単体の呼び出しも
+    並行実行されると sqlite3.InterfaceError 等の異常を起こしうる（ローカル再現で確認済み）。
+    呼び出し側の wrap 漏れを防ぐため、ここで execute/executescript/commit を自動ロックする。
+    """
+
+    lock: threading.RLock
+
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        with self.lock:
+            return super().execute(*args, **kwargs)
+
+    def executescript(self, *args: Any, **kwargs: Any) -> Any:
+        with self.lock:
+            return super().executescript(*args, **kwargs)
+
+    def commit(self, *args: Any, **kwargs: Any) -> None:
+        with self.lock:
+            super().commit(*args, **kwargs)
 
 
 def connect(db_url: str, auth_token: str | None = None) -> Any:
@@ -73,7 +121,14 @@ def connect(db_url: str, auth_token: str | None = None) -> Any:
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
     # check_same_thread=False: webhook の BackgroundTask は別スレッドで動く(P2)
-    conn = sqlite3.connect(db_url, check_same_thread=False)
+    conn = sqlite3.connect(db_url, check_same_thread=False, factory=_KotoSqliteConnection)
     conn.row_factory = sqlite3.Row
+    # 複数スレッドから同一接続を共有するため、read-then-write な複合操作を
+    # 呼び出し側で直列化するためのロック（Issue #33）。
+    conn.lock = threading.RLock()
     conn.execute("PRAGMA foreign_keys = ON")
+    # WAL: 同時読み取りを妨げず、書き込み時の "database is locked" を抑える。
+    # busy_timeout: 書き込みロック競合時に即エラーにせず一定時間待つ。
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA busy_timeout = 5000")
     return conn
