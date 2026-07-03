@@ -67,6 +67,53 @@ def test_mark_processed_idempotent(conn):
     assert crud.is_processed(conn, "evt_abc") is True
 
 
+# --- Issue #47: 冪等化用データの定期クリーンアップ ----------------------------
+
+
+def _iso_days_ago(days: int) -> str:
+    from datetime import datetime, timedelta, timezone
+
+    jst = timezone(timedelta(hours=9))
+    return (datetime.now(jst) - timedelta(days=days)).isoformat()
+
+
+def test_cleanup_old_processed_events_removes_only_old_rows(conn):
+    conn.execute(
+        "INSERT INTO processed_events (event_id, created_at) VALUES (?, ?)",
+        ("evt_old", _iso_days_ago(10)),
+    )
+    conn.execute(
+        "INSERT INTO processed_events (event_id, created_at) VALUES (?, ?)",
+        ("evt_recent", _iso_days_ago(1)),
+    )
+    conn.commit()
+
+    deleted = crud.cleanup_old_processed_events(conn, older_than_days=7)
+
+    assert deleted == 1
+    assert crud.is_processed(conn, "evt_old") is False
+    assert crud.is_processed(conn, "evt_recent") is True
+
+
+def test_cleanup_old_processed_events_returns_zero_when_nothing_old(conn):
+    crud.mark_processed(conn, "evt_new")
+    deleted = crud.cleanup_old_processed_events(conn, older_than_days=7)
+    assert deleted == 0
+    assert crud.is_processed(conn, "evt_new") is True
+
+
+def test_cleanup_old_processed_events_default_retention_is_seven_days(conn):
+    conn.execute(
+        "INSERT INTO processed_events (event_id, created_at) VALUES (?, ?)",
+        ("evt_8d", _iso_days_ago(8)),
+    )
+    conn.commit()
+
+    deleted = crud.cleanup_old_processed_events(conn)
+
+    assert deleted == 1
+
+
 # --- T2.3: webhook → Agent → reply の配線 -----------------------------------
 
 

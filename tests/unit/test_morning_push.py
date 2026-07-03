@@ -217,3 +217,57 @@ def test_daily_summary_includes_hospital():
 def test_daily_summary_includes_outing():
     text = build_daily_summary_text("6/21", [_OUTING])
     assert "外出: 1回" in text
+
+
+# ---------------------------------------------------------------------------
+# _run_processed_events_cleanup（Issue #47）
+# ---------------------------------------------------------------------------
+
+
+def test_run_processed_events_cleanup_calls_crud_cleanup(monkeypatch):
+    monkeypatch.setattr("kotolog.line.scheduler.load_config", _base_cfg)
+
+    with (
+        patch("kotolog.line.scheduler.connect") as mock_connect,
+        patch("kotolog.line.scheduler.crud.cleanup_old_processed_events", return_value=3) as mock_cleanup,
+    ):
+        mock_conn = MagicMock()
+        mock_connect.return_value = mock_conn
+        from kotolog.line.scheduler import _run_processed_events_cleanup
+
+        _run_processed_events_cleanup()
+
+        mock_cleanup.assert_called_once_with(mock_conn)
+
+
+def test_run_processed_events_cleanup_handles_zero_deletions(monkeypatch):
+    """削除件数0でも例外にならない。"""
+    monkeypatch.setattr("kotolog.line.scheduler.load_config", _base_cfg)
+
+    with (
+        patch("kotolog.line.scheduler.connect") as mock_connect,
+        patch("kotolog.line.scheduler.crud.cleanup_old_processed_events", return_value=0),
+    ):
+        mock_connect.return_value = MagicMock()
+        from kotolog.line.scheduler import _run_processed_events_cleanup
+
+        _run_processed_events_cleanup()  # 例外が出なければ OK
+
+
+def test_start_scheduler_registers_cleanup_job():
+    """start_scheduler が冪等化データクリーンアップのジョブも登録する。
+
+    AsyncIOScheduler.start() は実行中イベントループを要求するため、
+    同期テストからは start/shutdown をモックしてジョブ登録のみ検証する。
+    """
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+    from kotolog.line.scheduler import _cleanup_job, start_scheduler
+
+    with (
+        patch.object(AsyncIOScheduler, "start"),
+        patch.object(AsyncIOScheduler, "shutdown"),
+    ):
+        scheduler = start_scheduler()
+        job_funcs = [job.func for job in scheduler.get_jobs()]
+        assert _cleanup_job in job_funcs

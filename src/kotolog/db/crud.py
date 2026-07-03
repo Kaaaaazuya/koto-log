@@ -398,6 +398,18 @@ def mark_processed(conn: KotoConnection, event_id: str) -> None:
     conn.commit()
 
 
+def cleanup_old_processed_events(conn: KotoConnection, older_than_days: int = 7) -> int:
+    """指定日数より古い processed_events を削除する（Issue #47）。削除件数を返す。
+
+    LINE webhook の再送は短時間しか起こらないため、この期間を過ぎたレコードは
+    冪等化の役目を終えており安全に削除できる。
+    """
+    threshold = (datetime.now(JST) - timedelta(days=older_than_days)).isoformat()
+    cur = conn.execute("DELETE FROM processed_events WHERE created_at < ?", (threshold,))
+    conn.commit()
+    return cur.rowcount
+
+
 # --- レート制限・コスト管理（Issue #37） -------------------------------------------
 
 
