@@ -11,6 +11,7 @@ import sqlite3
 from datetime import date, datetime, timedelta, timezone
 
 from kotolog.db import crud
+from kotolog.tools.definitions import CONFIG_KEYS
 from kotolog.utils.subtype import normalize_sub_type
 from kotolog.utils.timeparse import normalize
 
@@ -154,6 +155,10 @@ class ToolExecutor:
     # --- config -------------------------------------------------------------
     def _set_config(self, args: dict) -> dict:
         key, value = args["key"], args["value"]
+        # Issue #30: Validate that only permitted config keys can be set
+        if key not in CONFIG_KEYS:
+            allowed = ", ".join(CONFIG_KEYS)
+            return {"ok": False, "reason": f"Invalid config key: {key}. Allowed: {allowed}"}
         if key == "due_date":
             try:
                 date.fromisoformat(value)

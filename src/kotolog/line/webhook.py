@@ -29,7 +29,28 @@ load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import logging
+
     from kotolog.line.scheduler import start_scheduler
+
+    logger = logging.getLogger(__name__)
+
+    # Issue #31: Verify required environment variables for LINE webhook
+    line_channel_secret = os.environ.get("LINE_CHANNEL_SECRET", "").strip()
+    line_channel_access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "").strip()
+
+    if not line_channel_secret or not line_channel_access_token:
+        missing_vars = []
+        if not line_channel_secret:
+            missing_vars.append("LINE_CHANNEL_SECRET")
+        if not line_channel_access_token:
+            missing_vars.append("LINE_CHANNEL_ACCESS_TOKEN")
+        logger.warning(
+            f"LINE webhook is disabled: missing required environment variables: {', '.join(missing_vars)}. "
+            "Set these variables to enable LINE message handling."
+        )
+        yield
+        return
 
     scheduler = start_scheduler()
     try:
@@ -119,9 +140,15 @@ async def webhook(
     background_tasks: BackgroundTasks,
     x_line_signature: str = Header(None),
 ):
-    """署名検証→即 200 OK、テキストイベントはバックグラウンドで処理。"""
+    """署名検証→即 200 OK、テキストイベントはバックグラウンドで処理。
+
+    Issue #31: LINE_CHANNEL_SECRET と LINE_CHANNEL_ACCESS_TOKEN を必須環境変数として厳密に検証。
+    """
     body = await request.body()
-    channel_secret = os.environ.get("LINE_CHANNEL_SECRET", "")
+    channel_secret = os.environ.get("LINE_CHANNEL_SECRET", "").strip()
+    access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "").strip()
+    if not channel_secret or not access_token:
+        raise HTTPException(status_code=503, detail="LINE webhook not configured")
     if not _verify_signature(body, x_line_signature or "", channel_secret):
         raise HTTPException(status_code=401, detail="Invalid signature")
 
