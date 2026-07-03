@@ -35,6 +35,16 @@ def test_set_and_get_session_context_round_trips(conn):
     assert crud.get_session_context(conn, "U001") == context
 
 
+def test_get_session_context_returns_none_when_stored_value_is_not_a_list(conn):
+    """DB破損・手動編集等で recent_context がリスト以外（dict等）の場合は None を返す。"""
+    conn.execute(
+        "INSERT INTO sessions (line_user_id, recent_context, updated_at) VALUES (?, ?, ?)",
+        ("U001", '{"not": "a list"}', "2026-01-01T00:00:00"),
+    )
+    conn.commit()
+    assert crud.get_session_context(conn, "U001") is None
+
+
 def test_set_session_context_overwrites_existing(conn):
     crud.set_session_context(conn, "U001", [{"role": "user", "content": "1回目"}])
     crud.set_session_context(conn, "U001", [{"role": "user", "content": "2回目"}])

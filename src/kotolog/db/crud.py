@@ -358,9 +358,10 @@ def get_session_context(conn: KotoConnection, line_user_id: str) -> list[dict] |
     if row is None or not row["recent_context"]:
         return None
     try:
-        return json.loads(row["recent_context"])
+        data = json.loads(row["recent_context"])
     except (TypeError, ValueError):
         return None
+    return data if isinstance(data, list) else None
 
 
 def set_session_context(conn: KotoConnection, line_user_id: str, context: list[dict]) -> None:
