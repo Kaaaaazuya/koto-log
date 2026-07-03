@@ -94,7 +94,7 @@
           </td>
           <td>
             <form method="POST" action="/admin/users/{{ u.line_user_id }}/delete?token={{ token }}" class="inline-form"
-                  onsubmit="return confirm('{{ u.nickname or u.line_user_id }} を削除しますか？')">
+                  onsubmit="return confirm({{ (u.nickname or u.line_user_id) | tojson }} + ' を削除しますか？')">
               <button type="submit" class="btn btn-danger">削除</button>
             </form>
           </td>
