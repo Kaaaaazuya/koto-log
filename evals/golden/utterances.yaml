@@ -1,0 +1,873 @@
+# E1-1: ツール呼び出し正しさ評価のためのゴールデンセット。
+#
+# 注記: Turso には生の発話ログ（ユーザーが実際に打ったテキスト）を保存する
+# テーブルが存在しない（records には保存結果のみが残る）。そのため本ファイルは
+# 「実発話ログからの自動抽出」ではなく、ドメイン知識と既存テスト
+# （tests/unit/test_extractor.py, evals/tool_selection.py 等）を参考にした
+# 手動作成のケース集である（issue #64 コメント参照）。
+#
+# 実装の実際のルーティング（src/kotolog/agent/loop.py Agent.handle）:
+#   1. まず extract_records を強制呼び出しし、records（0件以上の配列）を得る。
+#      records が1件以上あれば、それぞれ save_record として保存されて完了する。
+#   2. records が空の場合のみ、通常の TOOLS
+#      （save_record / query_records / update_or_delete_record / set_config）
+#      を使ったループにフォールバックする。
+#
+# 各ケースの `expected.stage` はどちらの段で判定すべきかを示す:
+#   - extract: extract_records が非空の records を返すべき（記録として保存される発話）
+#   - loop:    extract_records は空を返し、ループ側で特定の tool/args が呼ばれるべき
+#              （集計・修正・設定変更などの発話）
+#   - none:    extract_records は空を返し、ループ側でもツールを呼ばず自由文で返すべき
+#              （記録に該当しない雑談・質問）
+#
+# 時刻表現（started_at 等）はユーザーの発話をそのまま渡すのが正しい（executor側で
+# 相対→絶対に正規化される）。採点側（#65）で許容幅を設けて比較する想定。
+
+good_cases:
+  # --- feeding ---
+  - id: good-001
+    utterance: "3時にミルク120ml飲んだ"
+    tags: [feeding]
+    expected:
+      stage: extract
+      records:
+        - type: feeding
+          sub_type: ミルク
+          amount: 120
+          unit: ml
+          started_at: "3時"
+
+  - id: good-002
+    utterance: "9時に母乳あげた"
+    tags: [feeding]
+    expected:
+      stage: extract
+      records:
+        - type: feeding
+          sub_type: 母乳
+          started_at: "9時"
+
+  - id: good-003
+    utterance: "おっぱいあげた"
+    tags: [feeding, synonym]
+    expected:
+      stage: extract
+      records:
+        - type: feeding
+          sub_type: 母乳
+
+  - id: good-004
+    utterance: "搾乳した分を80ml飲ませた"
+    tags: [feeding, synonym]
+    expected:
+      stage: extract
+      records:
+        - type: feeding
+          sub_type: 搾母乳
+          amount: 80
+          unit: ml
+
+  - id: good-005
+    utterance: "14時半に粉ミルク100ml"
+    tags: [feeding, synonym]
+    expected:
+      stage: extract
+      records:
+        - type: feeding
+          sub_type: ミルク
+          amount: 100
+          unit: ml
+          started_at: "14時半"
+
+  # --- sleep ---
+  - id: good-006
+    utterance: "9時に寝た"
+    tags: [sleep]
+    expected:
+      stage: extract
+      records:
+        - type: sleep
+          started_at: "9時"
+
+  - id: good-007
+    utterance: "13時から15時まで昼寝した"
+    tags: [sleep]
+    expected:
+      stage: extract
+      records:
+        - type: sleep
+          started_at: "13時"
+          ended_at: "15時"
+
+  # --- diaper ---
+  - id: good-008
+    utterance: "さっきうんちした"
+    tags: [diaper]
+    expected:
+      stage: extract
+      records:
+        - type: diaper
+          sub_type: うんち
+          started_at: "さっき"
+
+  - id: good-009
+    utterance: "10時におしっこでおむつ替えた"
+    tags: [diaper]
+    expected:
+      stage: extract
+      records:
+        - type: diaper
+          sub_type: おしっこ
+          started_at: "10時"
+
+  - id: good-010
+    utterance: "うんPと おしっこ両方出てた"
+    tags: [diaper, synonym]
+    expected:
+      stage: extract
+      records:
+        - type: diaper
+          sub_type: 両方
+
+  # --- temp ---
+  - id: good-011
+    utterance: "体温測ったら36.8度だった"
+    tags: [temp]
+    expected:
+      stage: extract
+      records:
+        - type: temp
+          amount: 36.8
+
+  - id: good-012
+    utterance: "朝7時に検温37.2"
+    tags: [temp]
+    expected:
+      stage: extract
+      records:
+        - type: temp
+          amount: 37.2
+          started_at: "朝7時"
+
+  # --- baby_food ---
+  - id: good-013
+    utterance: "12時に離乳食食べさせた"
+    tags: [baby_food]
+    expected:
+      stage: extract
+      records:
+        - type: baby_food
+          started_at: "12時"
+
+  - id: good-014
+    utterance: "お粥を少し食べた"
+    tags: [baby_food]
+    expected:
+      stage: extract
+      records:
+        - type: baby_food
+
+  # --- bath ---
+  - id: good-015
+    utterance: "19時にお風呂入れた"
+    tags: [bath]
+    expected:
+      stage: extract
+      records:
+        - type: bath
+          started_at: "19時"
+
+  - id: good-016
+    utterance: "沐浴させた"
+    tags: [bath]
+    expected:
+      stage: extract
+      records:
+        - type: bath
+
+  # --- medicine ---
+  - id: good-017
+    utterance: "熱冷まし0.5g飲ませた"
+    tags: [medicine]
+    expected:
+      stage: extract
+      records:
+        - type: medicine
+          amount: 0.5
+          unit: g
+
+  - id: good-018
+    utterance: "8時に薬を飲ませた"
+    tags: [medicine]
+    expected:
+      stage: extract
+      records:
+        - type: medicine
+          started_at: "8時"
+
+  # --- hospital ---
+  - id: good-019
+    utterance: "今日小児科に連れて行った"
+    tags: [hospital]
+    expected:
+      stage: extract
+      records:
+        - type: hospital
+
+  - id: good-020
+    utterance: "10時から予防接種で病院行った"
+    tags: [hospital]
+    expected:
+      stage: extract
+      records:
+        - type: hospital
+          started_at: "10時"
+
+  # --- outing ---
+  - id: good-021
+    utterance: "散歩に行った"
+    tags: [outing]
+    expected:
+      stage: extract
+      records:
+        - type: outing
+
+  - id: good-022
+    utterance: "16時から公園に外出した"
+    tags: [outing]
+    expected:
+      stage: extract
+      records:
+        - type: outing
+          started_at: "16時"
+
+  # --- height / weight ---
+  - id: good-023
+    utterance: "身長測ったら62.5cmだった"
+    tags: [height]
+    expected:
+      stage: extract
+      records:
+        - type: height
+          amount: 62.5
+          unit: cm
+
+  - id: good-024
+    utterance: "体重は6200gだった"
+    tags: [weight]
+    expected:
+      stage: extract
+      records:
+        - type: weight
+          amount: 6200
+          unit: g
+
+  - id: good-025
+    utterance: "健診で体重6.5kg、身長63cmだった"
+    tags: [weight, height, batch]
+    expected:
+      stage: extract
+      records:
+        - type: weight
+          amount: 6.5
+          unit: kg
+        - type: height
+          amount: 63
+          unit: cm
+
+  # --- query_records ---
+  - id: good-026
+    utterance: "今日は何回ミルク飲んだ？"
+    tags: [query, feeding]
+    expected:
+      stage: loop
+      tool: query_records
+      args:
+        period: today
+        type: feeding
+
+  - id: good-027
+    utterance: "昨日の睡眠はどうだった？"
+    tags: [query, sleep]
+    expected:
+      stage: loop
+      tool: query_records
+      args:
+        period: yesterday
+        type: sleep
+
+  - id: good-028
+    utterance: "今日のまとめは？"
+    tags: [query, summary]
+    expected:
+      stage: loop
+      tool: query_records
+      args:
+        period: today
+
+  - id: good-029
+    utterance: "今週の授乳をまとめて"
+    tags: [query, feeding]
+    expected:
+      stage: loop
+      tool: query_records
+      args:
+        period: last_7days
+        type: feeding
+
+  - id: good-030
+    utterance: "前回の授乳はいつ？"
+    tags: [query, latest]
+    expected:
+      stage: loop
+      tool: query_records
+      args:
+        period: latest
+        type: feeding
+
+  - id: good-031
+    utterance: "最後におむつ替えたのいつ？"
+    tags: [query, latest]
+    expected:
+      stage: loop
+      tool: query_records
+      args:
+        period: latest
+        type: diaper
+
+  - id: good-032
+    utterance: "今週のうんちの回数教えて"
+    tags: [query, diaper]
+    expected:
+      stage: loop
+      tool: query_records
+      args:
+        period: this_week
+        type: diaper
+        sub_type: うんち
+
+  - id: good-033
+    utterance: "今月の体重の記録見せて"
+    tags: [query, weight]
+    expected:
+      stage: loop
+      tool: query_records
+      args:
+        period: this_month
+        type: weight
+
+  - id: good-034
+    utterance: "直近24時間の睡眠時間は？"
+    tags: [query, sleep]
+    expected:
+      stage: loop
+      tool: query_records
+      args:
+        period: last_24h
+        type: sleep
+
+  - id: good-035
+    utterance: "7月1日から7月3日までの記録見せて"
+    tags: [query, custom]
+    expected:
+      stage: loop
+      tool: query_records
+      args:
+        period: custom
+        start_date: "2026-07-01"
+        end_date: "2026-07-03"
+
+  # --- update_or_delete_record ---
+  - id: good-036
+    utterance: "さっきのなし"
+    tags: [correction, delete]
+    expected:
+      stage: loop
+      tool: update_or_delete_record
+      args:
+        target: last
+        action: delete
+
+  - id: good-037
+    utterance: "さっきの記録取り消して"
+    tags: [correction, delete]
+    expected:
+      stage: loop
+      tool: update_or_delete_record
+      args:
+        target: last
+        action: delete
+
+  - id: good-038
+    utterance: "さっきのを150に直して"
+    tags: [correction, update]
+    expected:
+      stage: loop
+      tool: update_or_delete_record
+      args:
+        target: last
+        action: update
+
+  - id: good-039
+    utterance: "今の記録間違えた、時間を9時にして"
+    tags: [correction, update]
+    expected:
+      stage: loop
+      tool: update_or_delete_record
+      args:
+        target: last
+        action: update
+
+  - id: good-040
+    utterance: "直前の授乳の量を100mlに修正して"
+    tags: [correction, update]
+    expected:
+      stage: loop
+      tool: update_or_delete_record
+      args:
+        target: last
+        action: update
+
+  # --- set_config ---
+  - id: good-041
+    utterance: "出産予定日は9月15日です"
+    tags: [config]
+    expected:
+      stage: loop
+      tool: set_config
+      args:
+        key: due_date
+        value: "2026-09-15"
+
+  - id: good-042
+    utterance: "予定日を2026-10-01に変更して"
+    tags: [config]
+    expected:
+      stage: loop
+      tool: set_config
+      args:
+        key: due_date
+        value: "2026-10-01"
+
+  # --- additional straightforward pairs to reach 50 ---
+  - id: good-043
+    utterance: "20時にミルク150ml"
+    tags: [feeding]
+    expected:
+      stage: extract
+      records:
+        - type: feeding
+          sub_type: ミルク
+          amount: 150
+          unit: ml
+          started_at: "20時"
+
+  - id: good-044
+    utterance: "22時から朝まで寝た"
+    tags: [sleep]
+    expected:
+      stage: extract
+      records:
+        - type: sleep
+          started_at: "22時"
+
+  - id: good-045
+    utterance: "夜中におしっこでおむつ替えた"
+    tags: [diaper]
+    expected:
+      stage: extract
+      records:
+        - type: diaper
+          sub_type: おしっこ
+          started_at: "夜中"
+
+  - id: good-046
+    utterance: "今日は熱なし、平熱だった"
+    tags: [temp]
+    expected:
+      stage: extract
+      records:
+        - type: temp
+
+  - id: good-047
+    utterance: "夕方に離乳食を完食した"
+    tags: [baby_food]
+    expected:
+      stage: extract
+      records:
+        - type: baby_food
+          started_at: "夕方"
+
+  - id: good-048
+    utterance: "今週のお風呂の回数は？"
+    tags: [query, bath]
+    expected:
+      stage: loop
+      tool: query_records
+      args:
+        period: this_week
+        type: bath
+
+  - id: good-049
+    utterance: "最近の身長の伸びを教えて"
+    tags: [query, height]
+    expected:
+      stage: loop
+      tool: query_records
+      args:
+        type: height
+
+  - id: good-050
+    utterance: "さっき熱測ったの、37.5に直して"
+    tags: [correction, update]
+    expected:
+      stage: loop
+      tool: update_or_delete_record
+      args:
+        target: last
+        action: update
+
+hard_cases:
+  # --- 相対時刻 ---
+  - id: hard-001
+    utterance: "さっき母乳あげた"
+    tags: [relative-time]
+    expected:
+      stage: extract
+      records:
+        - type: feeding
+          sub_type: 母乳
+          started_at: "さっき"
+
+  - id: hard-002
+    utterance: "30分前にミルク100ml"
+    tags: [relative-time]
+    expected:
+      stage: extract
+      records:
+        - type: feeding
+          sub_type: ミルク
+          amount: 100
+          unit: ml
+          started_at: "30分前"
+
+  - id: hard-003
+    utterance: "夜中に何度も起きて授乳した"
+    tags: [relative-time, ambiguous]
+    expected:
+      stage: extract
+      records:
+        - type: feeding
+          started_at: "夜中"
+
+  - id: hard-004
+    utterance: "お昼過ぎにうんちしてた"
+    tags: [relative-time]
+    expected:
+      stage: extract
+      records:
+        - type: diaper
+          sub_type: うんち
+          started_at: "お昼過ぎ"
+
+  - id: hard-005
+    utterance: "ついさっき寝ちゃった"
+    tags: [relative-time]
+    expected:
+      stage: extract
+      records:
+        - type: sleep
+          started_at: "ついさっき"
+
+  # --- まとめ入力（複数記録） ---
+  - id: hard-006
+    utterance: "9時に母乳、10時から昼寝、11時におむつ"
+    tags: [batch]
+    expected:
+      stage: extract
+      records:
+        - type: feeding
+          sub_type: 母乳
+          started_at: "9時"
+        - type: sleep
+          started_at: "10時"
+        - type: diaper
+          started_at: "11時"
+
+  - id: hard-007
+    utterance: "朝ミルク120ml飲んで、そのあとうんちして、お昼寝した"
+    tags: [batch]
+    expected:
+      stage: extract
+      records:
+        - type: feeding
+          sub_type: ミルク
+          amount: 120
+          unit: ml
+        - type: diaper
+          sub_type: うんち
+        - type: sleep
+
+  - id: hard-008
+    utterance: "検温36.9度、離乳食完食、お風呂も入れた"
+    tags: [batch]
+    expected:
+      stage: extract
+      records:
+        - type: temp
+          amount: 36.9
+        - type: baby_food
+        - type: bath
+
+  - id: hard-009
+    utterance: "8時起床、8時半ミルク100ml、9時公園へ"
+    tags: [batch]
+    expected:
+      stage: extract
+      records:
+        - type: feeding
+          sub_type: ミルク
+          amount: 100
+          unit: ml
+          started_at: "8時半"
+        - type: outing
+          started_at: "9時"
+
+  - id: hard-010
+    utterance: "薬を8時と20時の2回飲ませた"
+    tags: [batch]
+    expected:
+      stage: extract
+      records:
+        - type: medicine
+          started_at: "8時"
+        - type: medicine
+          started_at: "20時"
+
+  # --- 修正系（曖昧） ---
+  - id: hard-011
+    utterance: "150に直して"
+    tags: [correction, ambiguous]
+    expected:
+      stage: loop
+      tool: update_or_delete_record
+      args:
+        target: last
+        action: update
+
+  - id: hard-012
+    utterance: "さっきのなし"
+    tags: [correction]
+    expected:
+      stage: loop
+      tool: update_or_delete_record
+      args:
+        target: last
+        action: delete
+
+  - id: hard-013
+    utterance: "やっぱりさっきの取り消して、寝てなかった"
+    tags: [correction]
+    expected:
+      stage: loop
+      tool: update_or_delete_record
+      args:
+        target: last
+        action: delete
+
+  - id: hard-014
+    utterance: "間違えた、100じゃなくて120"
+    tags: [correction, ambiguous]
+    expected:
+      stage: loop
+      tool: update_or_delete_record
+      args:
+        target: last
+        action: update
+
+  # --- 記録に該当しない雑談・質問（ツールを呼ばないのが正解） ---
+  - id: hard-015
+    utterance: "今日はいい天気だね"
+    tags: [chit-chat, no-tool]
+    expected:
+      stage: none
+
+  - id: hard-016
+    utterance: "離乳食のおすすめメニューある？"
+    tags: [question, no-tool]
+    expected:
+      stage: none
+
+  - id: hard-017
+    utterance: "37.5度って発熱かな？"
+    tags: [question, health-advice, no-tool]
+    expected:
+      stage: none
+
+  - id: hard-018
+    utterance: "疲れたー、今日も一日お疲れさま"
+    tags: [chit-chat, no-tool]
+    expected:
+      stage: none
+
+  - id: hard-019
+    utterance: "予防接種って何ヶ月からだっけ？"
+    tags: [question, no-tool]
+    expected:
+      stage: none
+
+  - id: hard-020
+    utterance: "ありがとう、助かる"
+    tags: [chit-chat, no-tool]
+    expected:
+      stage: none
+
+  # --- サブタイプの表記ゆれ・省略で解釈が割れやすいもの ---
+  - id: hard-021
+    utterance: "直母した"
+    tags: [feeding, synonym, ambiguous]
+    expected:
+      stage: extract
+      records:
+        - type: feeding
+          sub_type: 母乳
+
+  - id: hard-022
+    utterance: "便が少なかった"
+    tags: [diaper, synonym, ambiguous]
+    expected:
+      stage: extract
+      records:
+        - type: diaper
+          sub_type: うんち
+
+  - id: hard-023
+    utterance: "人工乳に変えて100ml"
+    tags: [feeding, synonym]
+    expected:
+      stage: extract
+      records:
+        - type: feeding
+          sub_type: ミルク
+          amount: 100
+          unit: ml
+
+  # --- 集計と記録が混在し得るぎりぎりの表現 ---
+  - id: hard-024
+    utterance: "今日何回おむつ替えたっけ、あと今も替えた"
+    tags: [batch, query, ambiguous]
+    expected:
+      stage: extract
+      records:
+        - type: diaper
+
+  - id: hard-025
+    utterance: "そろそろ授乳の時間かな"
+    tags: [chit-chat, no-tool, ambiguous]
+    expected:
+      stage: none
+
+multi_child_cases:
+  - id: multi-001
+    utterance: "たろうに9時にミルク100ml"
+    tags: [explicit-child]
+    expected:
+      stage: extract
+      child: "たろう"
+      records:
+        - type: feeding
+          sub_type: ミルク
+          amount: 100
+          unit: ml
+          started_at: "9時"
+
+  - id: multi-002
+    utterance: "上の子が熱測ったら37.8度だった"
+    tags: [relative-child]
+    expected:
+      stage: extract
+      child: "上の子"
+      records:
+        - type: temp
+          amount: 37.8
+
+  - id: multi-003
+    utterance: "下の子のおむつ替えた、うんちだった"
+    tags: [relative-child]
+    expected:
+      stage: extract
+      child: "下の子"
+      records:
+        - type: diaper
+          sub_type: うんち
+
+  - id: multi-004
+    utterance: "はなこに離乳食あげた、たろうにはミルク120ml"
+    tags: [explicit-child, batch, child-switch, known-limitation]
+    expected:
+      stage: extract
+      note: "extract_records の child はメッセージ全体で1件のみ（レコード単位ではない）ため、1発話内で複数児を扱う正解は現行ツール定義では表現不能。児ごとの分離ができないことを検出するためのケース（#43参照）。"
+      records:
+        - type: baby_food
+        - type: feeding
+          sub_type: ミルク
+          amount: 120
+          unit: ml
+
+  - id: multi-005
+    utterance: "今日からたろうを記録対象にして"
+    tags: [child-switch, config]
+    expected:
+      stage: none
+      note: "現行ツール定義には子の切り替え専用ツールがなく、users.current_child_id の更新手段が未実装。挙動未定義のため注意が必要（#43参照）。"
+
+  - id: multi-006
+    utterance: "上の子の前回の授乳はいつ？"
+    tags: [relative-child, query]
+    expected:
+      stage: loop
+      tool: query_records
+      args:
+        period: latest
+        type: feeding
+
+  - id: multi-007
+    utterance: "たろうの今週の睡眠時間は？"
+    tags: [explicit-child, query]
+    expected:
+      stage: loop
+      tool: query_records
+      args:
+        period: this_week
+        type: sleep
+
+  - id: multi-008
+    utterance: "下の子の体重は6.5kgだった"
+    tags: [relative-child]
+    expected:
+      stage: extract
+      child: "下の子"
+      records:
+        - type: weight
+          amount: 6.5
+          unit: kg
+
+  - id: multi-009
+    utterance: "はなこの分のさっきの記録、取り消して"
+    tags: [explicit-child, correction]
+    expected:
+      stage: loop
+      tool: update_or_delete_record
+      args:
+        target: last
+        action: delete
+
+  - id: multi-010
+    utterance: "たろうと はなこ 両方お風呂入れた"
+    tags: [explicit-child, batch, child-switch, known-limitation]
+    expected:
+      stage: extract
+      note: "extract_records の child はメッセージ全体で1件のみのため、2児分をそれぞれ正しい child_id に振り分ける正解は現行ツール定義では表現不能（#43参照）。"
+      records:
+        - type: bath
+        - type: bath
