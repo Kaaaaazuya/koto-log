@@ -55,6 +55,7 @@ good_cases:
       records:
         - type: feeding
           sub_type: 母乳
+          started_at: "さっき"
 
   - id: good-004
     utterance: "搾乳した分を80ml飲ませた"
@@ -66,6 +67,7 @@ good_cases:
           sub_type: 搾母乳
           amount: 80
           unit: ml
+          started_at: "さっき"
 
   - id: good-005
     utterance: "14時半に粉ミルク100ml"
@@ -128,6 +130,7 @@ good_cases:
       records:
         - type: diaper
           sub_type: 両方
+          started_at: "さっき"
 
   # --- temp ---
   - id: good-011
@@ -138,6 +141,7 @@ good_cases:
       records:
         - type: temp
           amount: 36.8
+          started_at: "さっき"
 
   - id: good-012
     utterance: "朝7時に検温37.2"
@@ -166,6 +170,7 @@ good_cases:
       stage: extract
       records:
         - type: baby_food
+          started_at: "さっき"
 
   # --- bath ---
   - id: good-015
@@ -184,6 +189,7 @@ good_cases:
       stage: extract
       records:
         - type: bath
+          started_at: "さっき"
 
   # --- medicine ---
   - id: good-017
@@ -195,6 +201,7 @@ good_cases:
         - type: medicine
           amount: 0.5
           unit: g
+          started_at: "さっき"
 
   - id: good-018
     utterance: "8時に薬を飲ませた"
@@ -213,6 +220,7 @@ good_cases:
       stage: extract
       records:
         - type: hospital
+          started_at: "さっき"
 
   - id: good-020
     utterance: "10時から予防接種で病院行った"
@@ -231,6 +239,7 @@ good_cases:
       stage: extract
       records:
         - type: outing
+          started_at: "さっき"
 
   - id: good-022
     utterance: "16時から公園に外出した"
@@ -251,6 +260,7 @@ good_cases:
         - type: height
           amount: 62.5
           unit: cm
+          started_at: "さっき"
 
   - id: good-024
     utterance: "体重は6200gだった"
@@ -261,6 +271,7 @@ good_cases:
         - type: weight
           amount: 6200
           unit: g
+          started_at: "さっき"
 
   - id: good-025
     utterance: "健診で体重6.5kg、身長63cmだった"
@@ -271,9 +282,11 @@ good_cases:
         - type: weight
           amount: 6.5
           unit: kg
+          started_at: "さっき"
         - type: height
           amount: 63
           unit: cm
+          started_at: "さっき"
 
   # --- query_records ---
   - id: good-026
@@ -367,7 +380,9 @@ good_cases:
         type: sleep
 
   - id: good-035
-    utterance: "7月1日から7月3日までの記録見せて"
+    # 年を省略すると、実行時の実際の日付に応じて LLM が補完する年が変わり得るため
+    # （現在時刻はプロンプトで明示的に与えられていない）、年を明示して曖昧さをなくす。
+    utterance: "2026年7月1日から2026年7月3日までの記録見せて"
     tags: [query, custom]
     expected:
       stage: loop
@@ -407,6 +422,8 @@ good_cases:
       args:
         target: last
         action: update
+        new_values:
+          amount: 150
 
   - id: good-039
     utterance: "今の記録間違えた、時間を9時にして"
@@ -417,6 +434,8 @@ good_cases:
       args:
         target: last
         action: update
+        new_values:
+          started_at: "9時"
 
   - id: good-040
     utterance: "直前の授乳の量を100mlに修正して"
@@ -427,10 +446,13 @@ good_cases:
       args:
         target: last
         action: update
+        new_values:
+          amount: 100
 
   # --- set_config ---
   - id: good-041
-    utterance: "出産予定日は9月15日です"
+    # good-035 と同じ理由で年を明示する。
+    utterance: "出産予定日は2026年9月15日です"
     tags: [config]
     expected:
       stage: loop
@@ -488,6 +510,7 @@ good_cases:
       stage: extract
       records:
         - type: temp
+          started_at: "さっき"
 
   - id: good-047
     utterance: "夕方に離乳食を完食した"
@@ -515,6 +538,7 @@ good_cases:
       stage: loop
       tool: query_records
       args:
+        period: this_month
         type: height
 
   - id: good-050
@@ -526,6 +550,8 @@ good_cases:
       args:
         target: last
         action: update
+        new_values:
+          amount: 37.5
 
 hard_cases:
   # --- 相対時刻 ---
@@ -654,10 +680,12 @@ hard_cases:
       args:
         target: last
         action: update
+        new_values:
+          amount: 150
 
   - id: hard-012
-    utterance: "さっきのなし"
-    tags: [correction]
+    utterance: "さっき記録したの無視して、今のは記録しなくていい"
+    tags: [correction, ambiguous]
     expected:
       stage: loop
       tool: update_or_delete_record
@@ -684,6 +712,8 @@ hard_cases:
       args:
         target: last
         action: update
+        new_values:
+          amount: 120
 
   # --- 記録に該当しない雑談・質問（ツールを呼ばないのが正解） ---
   - id: hard-015
