@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from kotolog.agent.extractor import extract_records, format_confirmation
+from kotolog.agent.prompts import load_prompt
 from kotolog.db import crud
 from kotolog.obs.usage import new_trace_id
 from kotolog.tools.definitions import TOOLS
@@ -26,23 +27,8 @@ MAX_ITERS = 5
 # Issue #38: 会話文脈として保持する往復数（history はこの件数×2 メッセージまでに切り詰める）
 MAX_CONTEXT_TURNS = 3
 
-SYSTEM_PROMPT = """育児記録アシスタント。授乳・睡眠・おむつなどをツールで保存・集計・修正する。
-
-返答スタイル:
-- 常態（だ・である調）で1〜2行以内
-- 確認は「授乳120ml（14:00）記録した」のように簡潔に
-- 集計はリスト形式で短く
-- 「何かお手伝いできますか」などの定型句は不要
-- マークダウン記法（**太字**など）は使わない
-
-ルール:
-- 記録・集計・修正/取り消しは必ずツールを呼ぶ
-- 時刻はユーザーが言ったまま（「さっき」「3時」等）ツールに渡す。自分で変換しない
-- 振り返り（「今日のまとめ」等）は query_records で集計し、返ってくる値をそのまま使う
-- 「前回の◯◯はいつ?」は query_records を period=latest で呼び、経過時間で答える
-- 情報が足りない場合は推測せず聞き返す
-- 健康相談には断定せず、心配なら受診を促す
-"""
+PROMPT_VERSION = "v1"
+SYSTEM_PROMPT = load_prompt("loop", PROMPT_VERSION)
 
 # 本文中に紛れ込んだ {"name":..., "arguments":...} を拾うための緩い JSON 抽出
 _JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
