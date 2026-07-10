@@ -76,11 +76,34 @@ CREATE INDEX IF NOT EXISTS idx_user_rate_limits_window ON user_rate_limits(windo
 """
 
 
+# 0006: usage_log テーブル追加（Issue #68 / ADR-0002 DB永続化）。
+# トークン使用量の永続化。UsageEvent のフィールドのみを保持し、line_user_id・
+# 育児ログ本文・引数値は一切含めない（PII最小化）。ts はJST ISO8601文字列で、
+# 月次集計（crud.monthly_usage_summary）が prefix 一致で参照するためインデックスを張る。
+_M0006_USAGE_LOG = """
+CREATE TABLE IF NOT EXISTS usage_log (
+    id                          INTEGER PRIMARY KEY AUTOINCREMENT,
+    trace_id                    TEXT,
+    operation                   TEXT,
+    model                       TEXT,
+    input_tokens                INTEGER,
+    output_tokens               INTEGER,
+    total_tokens                INTEGER,
+    cache_read_input_tokens     INTEGER,
+    cache_creation_input_tokens INTEGER,
+    cost_usd                    REAL,
+    ts                          TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_usage_log_ts ON usage_log(ts);
+"""
+
+
 MIGRATIONS: list[tuple[int, str | Callable]] = [
     (2, _M0002_USERS),
     (3, _M0003_CHILD_SEX),
     (4, _M0004_USER_APPROVAL),
     (5, _M0005_USER_RATE_LIMITS),
+    (6, _M0006_USAGE_LOG),
 ]
 
 # 既存DB判定に使うコアテーブル（どれかがあれば「既存DB」とみなす）
