@@ -18,6 +18,9 @@ RUN uv sync --no-dev --frozen
 
 USER kotolog
 
+# ビルド済み venv を直接使う（起動時に uv sync を走らせない）
+ENV PATH="/app/.venv/bin:$PATH"
+
 # Render は PORT 環境変数を自動で設定する
 EXPOSE 8080
-CMD ["sh", "-c", "uv run uvicorn kotolog.line.webhook:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "uvicorn kotolog.line.webhook:app --host 0.0.0.0 --port ${PORT:-8080}"]
