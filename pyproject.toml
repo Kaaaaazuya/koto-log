@@ -49,6 +49,7 @@ sort = "Cover"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--import-mode=importlib"
+pythonpath = ["."]
 markers = [
     "unit: 純ロジックの単体テスト（DB/ネットワーク非依存）",
     "integration: 実DB・複数コンポーネント結線の結合テスト",
