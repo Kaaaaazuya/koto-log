@@ -208,6 +208,8 @@ src/kotolog/
 │   └── reply.py        # LINE Reply API クライアント
 └── cli.py              # 対話CLI エントリ（LINE と同じ Agent を共有）
 evals/                  # ツール選択の正答率評価
+├── golden/utterances.yaml # E1-1: 発話→期待ツール呼び出しのゴールデンセット
+└── scoring.py            # E1-2: ゴールデンセットの採点ロジック（一致判定・集計・誤発火率）
 tests/                  # unit / integration / e2e
 docs/
 ├── external-services.md  # 外部サービスの URL・セットアップ手順
