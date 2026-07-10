@@ -19,7 +19,7 @@ def build_agent(config=None) -> Agent:
     conn = connect(config.db_url, auth_token=config.turso_auth_token)
     crud.init_db(conn)
     crud.get_or_create_default_child(conn, config.default_child)
-    client = LLMClient(config, sink=sink_from_config(config))
+    client = LLMClient(config, sink=sink_from_config(config, conn=conn))
     return Agent(client=client, conn=conn, config=config)
 
 

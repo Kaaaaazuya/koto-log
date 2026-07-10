@@ -63,7 +63,7 @@ def _run_morning_push() -> None:
         return
 
     new_trace_id()  # この push ジョブの LLM 呼び出しを 1 トレースに紐付ける。
-    llm = LLMClient(cfg, sink=sink_from_config(cfg))
+    llm = LLMClient(cfg, sink=sink_from_config(cfg, conn=conn))
     text = build_morning_text(remaining, llm)
     _fanout_push(conn, text, cfg.line_channel_access_token)
 

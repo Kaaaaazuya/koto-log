@@ -31,6 +31,7 @@ class Config:
     turso_auth_token: str | None
     dashboard_token: str | None
     usage_log: bool = False
+    usage_db: bool = False
     user_msg_limit: int = DEFAULT_USER_MSG_LIMIT
     user_llm_limit: int = DEFAULT_USER_LLM_LIMIT
 
@@ -77,6 +78,7 @@ def load_config() -> Config:
         turso_auth_token=os.getenv("TURSO_AUTH_TOKEN") or None,
         dashboard_token=os.getenv("KOTOLOG_DASHBOARD_TOKEN") or None,
         usage_log=os.getenv("KOTOLOG_USAGE_LOG", "").lower() in ("1", "true", "yes"),
+        usage_db=os.getenv("KOTOLOG_USAGE_DB", "").lower() in ("1", "true", "yes"),
         user_msg_limit=_get_int("KOTOLOG_USER_MSG_LIMIT_PER_HOUR", DEFAULT_USER_MSG_LIMIT),
         user_llm_limit=_get_int("KOTOLOG_USER_LLM_LIMIT_PER_HOUR", DEFAULT_USER_LLM_LIMIT),
     )
