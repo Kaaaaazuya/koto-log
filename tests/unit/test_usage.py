@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 from kotolog.obs.usage import (
     JsonLogSink,
+    ListSink,
     NullSink,
     UsageEvent,
     build_event,
@@ -141,6 +142,42 @@ def test_null_sink_does_nothing(caplog):
     with caplog.at_level(logging.INFO, logger="kotolog.usage"):
         NullSink().record(ev)
     assert caplog.records == []
+
+
+def test_list_sink_appends_events_in_order():
+    """ListSink は record() のたびにイベントをリストへ追記する（evals ランナーの計測に使用）。"""
+    sink = ListSink()
+    assert sink.events == []
+
+    events = [
+        UsageEvent(
+            trace_id=f"t{i}",
+            operation="extract",
+            model="m",
+            input_tokens=10 * i,
+            output_tokens=2 * i,
+            total_tokens=12 * i,
+            cache_read_input_tokens=0,
+            cache_creation_input_tokens=0,
+            cost_usd=0.001 * i,
+            ts=f"2026-07-10T10:0{i}:00+09:00",
+        )
+        for i in range(1, 4)
+    ]
+    for ev in events:
+        sink.record(ev)
+
+    assert len(sink.events) == 3
+    assert sink.events == events
+
+
+def test_list_sink_instances_do_not_share_state():
+    """複数インスタンス間でリストが共有されない（クラス変数のミュータブルデフォルト回避）。"""
+    a = ListSink()
+    b = ListSink()
+    a.record(build_event(_resp(), operation="loop", trace_id="a"))
+    assert a.events != b.events
+    assert b.events == []
 
 
 def test_sink_from_config():

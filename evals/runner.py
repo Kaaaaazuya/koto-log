@@ -1,9 +1,10 @@
-"""E1-3: evals専用の実行基盤。
+"""E1-3/E2-1: evals専用の実行基盤。
 
 本番と同じプロンプト（kotolog.agent.extractor / kotolog.agent.loop）・ツール定義
 （kotolog.tools.definitions.TOOLS）を使い回し、ゴールデンセット
 （evals/golden/utterances.yaml）に対する採点（evals/scoring.py）を実行する。
-実行結果はプロンプトバージョン・モデル・スコア・失敗ケース一覧を含む JSON として保存する。
+実行結果はプロンプトバージョン・モデル・スコア・失敗ケース一覧に加え、
+コスト・トークン数・レイテンシ（E2-1: モデル比較）を含む JSON として保存する。
 
 実行:
     uv run python -m evals.runner
@@ -15,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import time
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
@@ -27,6 +29,7 @@ from kotolog.agent.loop import PROMPT_VERSION as LOOP_PROMPT_VERSION
 from kotolog.agent.loop import SYSTEM_PROMPT, _extract_calls
 from kotolog.config import load_config
 from kotolog.llm.client import LLMClient
+from kotolog.obs.usage import ListSink
 from kotolog.tools.definitions import TOOLS
 
 JST = timezone(timedelta(hours=9))
@@ -77,29 +80,72 @@ def build_loop_fn(client: LLMClient):
     return loop_fn
 
 
+def _latency_stats(values: list[float]) -> dict:
+    """レイテンシ値（ms）の avg/p50/max/count を計算する。空なら全て None/0。"""
+    if not values:
+        return {"avg_latency_ms": None, "p50_latency_ms": None, "max_latency_ms": None, "count": 0}
+    srt = sorted(values)
+    n = len(srt)
+    avg = sum(srt) / n
+    mid = n // 2
+    p50 = srt[mid] if n % 2 == 1 else (srt[mid - 1] + srt[mid]) / 2
+    return {
+        "avg_latency_ms": round(avg, 3),
+        "p50_latency_ms": round(p50, 3),
+        "max_latency_ms": round(srt[-1], 3),
+        "count": n,
+    }
+
+
+def _resolve_sink(client, sink) -> ListSink | None:
+    """コスト集計に使う ListSink を決める。
+
+    明示的な sink があればそれを使う。無ければ client が公開する `_sink`
+    （LLMClient 互換で ListSink が注入されていれば）を読む。どちらも無ければ
+    None（コスト集計は 0/None のまま）。
+    """
+    if sink is not None:
+        return sink
+    candidate = getattr(client, "_sink", None)
+    return candidate if isinstance(candidate, ListSink) else None
+
+
 def run(
     model: str | None = None,
     golden_path: pathlib.Path = GOLDEN_PATH,
     now: datetime | None = None,
     client=None,
+    sink: ListSink | None = None,
 ) -> dict:
-    """ゴールデンセット全件を採点し、結果サマリを組み立てる。
+    """ゴールデンセット全件を採点し、結果サマリ（コスト・レイテンシ込み）を組み立てる。
 
     client を渡さなければ config から LLMClient を組み立てる。テストでは
     FakeLLM 等を注入して実 LLM 呼び出しなしに run() 全体を検証できる。
+
+    sink（E2-1）: コスト・トークン集計に使う ListSink。client を渡さない場合は
+    ここで作った（または渡された）ListSink を自前の LLMClient へ注入する。client を
+    渡す場合、sink を明示しなければ client._sink（ListSink であれば）を自動検出する。
+    どちらも無ければコスト集計は 0/None のまま失敗しない（FakeLLM 注入時など）。
     """
     config = load_config()
     if model:
         config = replace(config, model=model)
     if client is None:
-        client = LLMClient(config)
+        sink = sink or ListSink()
+        client = LLMClient(config, sink=sink)
+    else:
+        sink = _resolve_sink(client, sink)
     extract_fn = build_extract_fn(client)
     loop_fn = build_loop_fn(client)
     now = now or datetime.now(JST)
 
     cases = load_golden_cases(golden_path)
     results = []
+    all_latencies: list[float] = []
+    stage_latencies: dict[str, list[float]] = {}
     for case in cases:
+        prior_event_count = len(sink.events) if sink is not None else 0
+        start = time.perf_counter()
         try:
             result = score_case(case, extract_fn, loop_fn, now=now)
         except Exception as e:  # noqa: BLE001 - 1ケースの実LLM呼び出し失敗で全体を止めない
@@ -111,10 +157,55 @@ def run(
                 "false_positive": False,
                 "reason": f"error:{type(e).__name__}: {e}",
             }
+        latency_ms = (time.perf_counter() - start) * 1000
+
+        case_cost_usd = None
+        case_tokens = None
+        if sink is not None:
+            case_events = sink.events[prior_event_count:]
+            case_cost_usd = sum((ev.cost_usd or 0) for ev in case_events)
+            case_tokens = sum(ev.total_tokens for ev in case_events)
+
+        result = {
+            **result,
+            "latency_ms": round(latency_ms, 3),
+            "cost_usd": case_cost_usd,
+            "tokens": case_tokens,
+        }
         results.append(result)
+
+        all_latencies.append(latency_ms)
+        stage = result.get("stage")
+        if stage:
+            stage_latencies.setdefault(stage, []).append(latency_ms)
 
     summary = aggregate_results(results)
     failures = [r for r in results if not r["passed"]]
+
+    call_count = len(sink.events) if sink is not None else 0
+    if sink is not None and sink.events:
+        total_input_tokens = sum(ev.input_tokens for ev in sink.events)
+        total_output_tokens = sum(ev.output_tokens for ev in sink.events)
+        total_tokens = sum(ev.total_tokens for ev in sink.events)
+        total_cost_usd = sum((ev.cost_usd or 0) for ev in sink.events)
+    else:
+        total_input_tokens = 0
+        total_output_tokens = 0
+        total_tokens = 0
+        total_cost_usd = None
+
+    overall_latency = _latency_stats(all_latencies)
+    cost = {
+        "total_cost_usd": total_cost_usd,
+        "total_input_tokens": total_input_tokens,
+        "total_output_tokens": total_output_tokens,
+        "total_tokens": total_tokens,
+        "call_count": call_count,
+        "avg_latency_ms": overall_latency["avg_latency_ms"],
+        "p50_latency_ms": overall_latency["p50_latency_ms"],
+        "max_latency_ms": overall_latency["max_latency_ms"],
+        "by_stage": {stage: _latency_stats(values) for stage, values in stage_latencies.items()},
+    }
 
     return {
         "model": config.model,
@@ -123,6 +214,7 @@ def run(
         "golden_set_size": len(cases),
         "summary": summary,
         "failures": failures,
+        "cost": cost,
     }
 
 
@@ -162,6 +254,22 @@ def main() -> None:
         print(f"\nfailures ({len(result['failures'])}):")
         for f in result["failures"]:
             print(f"  {f['id']}: {f['reason']}")
+
+    cost = result["cost"]
+    cost_str = f"${cost['total_cost_usd']:.4f}" if cost["total_cost_usd"] is not None else "N/A"
+    print(f"\ncost: {cost_str}  calls={cost['call_count']}")
+    print(
+        f"tokens: in={cost['total_input_tokens']} out={cost['total_output_tokens']} "
+        f"total={cost['total_tokens']}"
+    )
+    print(
+        f"latency_ms: avg={cost['avg_latency_ms']} p50={cost['p50_latency_ms']} max={cost['max_latency_ms']}"
+    )
+    for stage, stats in sorted(cost["by_stage"].items()):
+        print(
+            f"  {stage}: avg={stats['avg_latency_ms']} p50={stats['p50_latency_ms']} "
+            f"max={stats['max_latency_ms']} (n={stats['count']})"
+        )
     print(f"\nsaved: {out_path}")
 
 
