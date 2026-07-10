@@ -299,6 +299,27 @@ git push  # main への push で Render が自動デプロイ
 | `LINE_CHANNEL_ACCESS_TOKEN` | （LINE利用時必須） | Reply/Push API に使用 |
 | `KOTOLOG_DASHBOARD_TOKEN` | （空） | ダッシュボード URL トークン |
 | `KOTOLOG_USAGE_LOG` | （空） | `1`/`true` でトークン使用量を 1行 JSON ログ出力（P7） |
+| `KOTOLOG_USAGE_DB` | （空） | `1`/`true` でトークン使用量を `usage_log` テーブルへ永続化（Issue #68） |
+
+## コスト計測（Issue #68 / ADR-0002）
+
+「今月の家族の育児記録にかかった API コスト」を確認する仕組み。詳細な設計・PII方針は
+[ADR-0002](docs/adr/0002-token-usage-measurement.md)、コスト予測の方法は
+[docs/cost-projection.md](docs/cost-projection.md) を参照。
+
+1. `KOTOLOG_USAGE_DB=1` を設定して起動する（`KOTOLOG_USAGE_LOG=1` と併用可、両方
+   有効なら両方に出力される）。DB 起動時のマイグレーションで `usage_log` テーブルが
+   自動作成される。育児ログ本文・LINE ユーザー ID などの PII はこのテーブルに一切
+   含まれない（`trace_id` / `operation` / `model` / トークン数 / `cost_usd` / `ts` のみ）。
+2. 月次サマリー（世帯全体・ユーザー別内訳なし）を確認する:
+
+   ```bash
+   uv run python -m kotolog.usage_report --month 2026-07   # 省略時は当月（JST）
+   uv run python -m kotolog.usage_report --db-url kotolog.db --month 2026-07
+   ```
+
+   合計コスト・トークン数に加え、`operation`（extract/loop/push）別・`model` 別の
+   内訳を表示する。
 
 ## LINE リッチメニュー推奨構成
 
