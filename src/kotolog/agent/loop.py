@@ -27,7 +27,8 @@ MAX_ITERS = 5
 # Issue #38: 会話文脈として保持する往復数（history はこの件数×2 メッセージまでに切り詰める）
 MAX_CONTEXT_TURNS = 3
 
-SYSTEM_PROMPT = load_prompt("loop")
+PROMPT_VERSION = "v1"
+SYSTEM_PROMPT = load_prompt("loop", PROMPT_VERSION)
 
 # 本文中に紛れ込んだ {"name":..., "arguments":...} を拾うための緩い JSON 抽出
 _JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)

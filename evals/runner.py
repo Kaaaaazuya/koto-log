@@ -21,7 +21,9 @@ from datetime import datetime, timedelta, timezone
 import yaml
 
 from evals.scoring import aggregate_results, score_case
+from kotolog.agent.extractor import PROMPT_VERSION as EXTRACT_PROMPT_VERSION
 from kotolog.agent.extractor import extract_records
+from kotolog.agent.loop import PROMPT_VERSION as LOOP_PROMPT_VERSION
 from kotolog.agent.loop import SYSTEM_PROMPT, _extract_calls
 from kotolog.config import load_config
 from kotolog.llm.client import LLMClient
@@ -32,9 +34,9 @@ JST = timezone(timedelta(hours=9))
 GOLDEN_PATH = pathlib.Path(__file__).parent / "golden" / "utterances.yaml"
 RESULTS_DIR = pathlib.Path(__file__).parent / "results"
 
-# extractor.py / loop.py が読み込むプロンプトファイルのバージョン（kotolog/agent/prompts.py）。
-# プロンプトを改版したら、対応する v1.txt を v2.txt にしてこの辞書も更新する。
-PROMPT_VERSIONS = {"extract": "v1", "loop": "v1"}
+# extractor.py / loop.py の PROMPT_VERSION をそのまま参照する（二重管理を避け、
+# 評価結果のメタデータが本番で実際に読み込まれているバージョンと乖離しないようにする）。
+PROMPT_VERSIONS = {"extract": EXTRACT_PROMPT_VERSION, "loop": LOOP_PROMPT_VERSION}
 
 
 def load_golden_cases(path: pathlib.Path = GOLDEN_PATH) -> list[dict]:
@@ -128,7 +130,7 @@ def save_result(result: dict, out_dir: pathlib.Path = RESULTS_DIR) -> pathlib.Pa
     """結果 JSON を `<timestamp>_<model>.json` として保存し、そのパスを返す。"""
     out_dir.mkdir(parents=True, exist_ok=True)
     ts = result["timestamp"].replace(":", "").replace("-", "").split("+")[0].split(".")[0]
-    model_slug = result["model"].replace("/", "_")
+    model_slug = result["model"].replace("/", "_").replace(":", "_")
     out_path = out_dir / f"{ts}_{model_slug}.json"
     out_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return out_path

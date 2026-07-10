@@ -70,7 +70,8 @@ _EXTRACT_TOOL = {
     },
 }
 
-_EXTRACT_SYSTEM = load_prompt("extract")
+PROMPT_VERSION = "v1"
+_EXTRACT_SYSTEM = load_prompt("extract", PROMPT_VERSION)
 
 _TYPE_LABELS = RECORD_TYPE_LABELS
 
