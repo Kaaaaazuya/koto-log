@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 
+from kotolog.agent.prompts import load_prompt
 from kotolog.types import RECORD_TYPE_LABELS
 
 _EXTRACT_TOOL = {
@@ -69,11 +70,7 @@ _EXTRACT_TOOL = {
     },
 }
 
-_EXTRACT_SYSTEM = (
-    "育児記録抽出アシスタント。"
-    "メッセージから授乳・睡眠・おむつ・体温・離乳食・お風呂・薬・病院・外出・身長・体重の記録を全て抽出せよ。"
-    "記録でない（質問・集計・修正など）は records を空リストにする。"
-)
+_EXTRACT_SYSTEM = load_prompt("extract")
 
 _TYPE_LABELS = RECORD_TYPE_LABELS
 
