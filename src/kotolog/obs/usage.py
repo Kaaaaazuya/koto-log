@@ -74,6 +74,20 @@ class JsonLogSink:
         logger.info("usage %s", json.dumps(asdict(event), ensure_ascii=False))
 
 
+class ListSink:
+    """イベントをメモリ上のリストへ貯める Sink（E2-1: evals ランナーのコスト/レイテンシ集計に使用）。
+
+    プロセス内で完結する評価実行のように、後から `events` を読んでコスト・トークン数を
+    集計したい場合に使う。永続化やログ出力は行わない。
+    """
+
+    def __init__(self) -> None:
+        self.events: list[UsageEvent] = []
+
+    def record(self, event: UsageEvent) -> None:  # noqa: D102
+        self.events.append(event)
+
+
 def sink_from_config(config: Any) -> UsageSink:
     """config.usage_log が真なら JsonLogSink、さもなくば NullSink。"""
     return JsonLogSink() if getattr(config, "usage_log", False) else NullSink()

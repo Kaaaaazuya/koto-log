@@ -214,9 +214,11 @@ src/kotolog/
 evals/                  # ツール選択の正答率評価
 ├── golden/utterances.yaml # E1-1: 発話→期待ツール呼び出しのゴールデンセット
 ├── scoring.py            # E1-2: ゴールデンセットの採点ロジック（一致判定・集計・誤発火率）
-└── runner.py             # E1-3: 採点の実行基盤（CLI）。本番と同じプロンプト・ツール定義を使い回し、evals/results/ にJSON保存
+├── runner.py             # E1-3/E2-1: 採点の実行基盤（CLI）。本番と同じプロンプト・ツール定義を使い回し、コスト・レイテンシ計測込みでevals/results/ にJSON保存
+└── compare.py            # E2-1: 結果JSON同士のモデル比較Markdownを生成するCLI
 tests/                  # unit / integration / e2e
 docs/
+├── eval-results/         # E2-1: モデル比較（Haiku⇔Sonnet）の実行結果・分析置き場
 ├── external-services.md  # 外部サービスの URL・セットアップ手順
 └── adr/
     ├── 0001-scheduler-apscheduler-in-process.md
@@ -353,7 +355,26 @@ uv run python -m evals.runner --golden evals/golden/utterances.yaml --out evals/
 | `summary.overall` | 全体の `passed`/`total` |
 | `summary.by_tag` | タグ別の `passed`/`total` |
 | `summary.false_positive_rate` | `stage=none` ケースでの誤発火率 |
-| `failures` | 不合格ケースの一覧（id・理由） |
+| `failures` | 不合格ケースの一覧（id・理由・`latency_ms`） |
+| `cost.total_cost_usd` | 全ケース合計の推定コスト（USD）。コスト計測不能なら `null`（E2-1） |
+| `cost.total_input_tokens` / `total_output_tokens` / `total_tokens` | 全ケース合計のトークン数 |
+| `cost.call_count` | 実行された LLM 呼び出し回数 |
+| `cost.avg_latency_ms` / `p50_latency_ms` / `max_latency_ms` | ケース単位（score_case 1回）のレイテンシ統計（全体） |
+| `cost.by_stage` | 上記レイテンシ統計を `extract`/`loop`/`none` ステージ別に集計したもの |
+
+コスト・レイテンシ計測は `kotolog.obs.usage.ListSink`（[docs/adr/0002](docs/adr/0002-token-usage-measurement.md)
+の Sink 抽象の実装の1つ）を `LLMClient` に注入して行う。`--model` に応じて litellm の
+単価表が対応していれば `total_cost_usd` が実額で入り、未対応（Ollama 等）なら `null` になる
+（その場合もトークン数・レイテンシは必ず入る）。
+
+```bash
+# 2つ（以上）の結果JSONをモデル比較Markdownにする（正答率・誤発火率・コスト・レイテンシ・タグ別比較・差分）
+uv run python -m evals.compare evals/results/xxx_haiku.json evals/results/yyy_sonnet.json \
+  --out docs/eval-results/haiku-vs-sonnet.md
+```
+
+Haiku ⇔ Sonnet の実測比較（精度×コスト×レイテンシ）の手順・現状は
+[docs/eval-results/README.md](docs/eval-results/README.md) を参照。
 
 `evals/tool_selection.py` は代表シナリオを複数回試行してツール選択の正答率を見る評価スクリプトで、
 `evals/runner.py` はゴールデンセット全件を1回ずつ実行して期待値との一致を判定する点が異なる。

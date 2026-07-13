@@ -19,6 +19,7 @@ from evals.runner import (
     run,
     save_result,
 )
+from kotolog.obs.usage import ListSink, build_event
 
 # ---------------------------------------------------------------------------
 # load_golden_cases
@@ -211,12 +212,17 @@ def test_run_returns_expected_structure(tmp_path, fake_llm, resp, tc):
         "golden_set_size",
         "summary",
         "failures",
+        "cost",
     }
     assert result["golden_set_size"] == 3
     assert result["prompt_versions"] == {"extract": "v1", "loop": "v1"}
     assert result["summary"]["overall"]["total"] == 3
     assert result["summary"]["overall"]["passed"] == 3
     assert result["failures"] == []
+    # client(FakeLLM) は sink を持たないため、コストは 0/None のまま失敗しない（E2-1）。
+    assert result["cost"]["call_count"] == 0
+    assert result["cost"]["total_cost_usd"] is None
+    assert result["cost"]["total_tokens"] == 0
 
 
 def test_run_model_override_reflected_in_result(tmp_path, fake_llm, resp, tc):
@@ -279,7 +285,103 @@ def test_run_continues_after_case_error(tmp_path, fake_llm, resp, tc):
 
 
 # ---------------------------------------------------------------------------
-# save_result
+# run() のコスト・レイテンシ計測（E2-1）
+# ---------------------------------------------------------------------------
+
+
+def test_run_case_result_includes_latency_ms(tmp_path):
+    """各ケースの score_case 実行時間が `latency_ms` として結果（失敗ケース）に記録される。"""
+    golden_path = _run_golden(tmp_path)
+
+    class RaisingLLM:
+        """常に例外を投げるフェイク（3ケース全てが失敗として記録される）。"""
+
+        def complete(self, messages, tools=None, tool_choice=None, *, operation="loop"):
+            raise RuntimeError("boom")
+
+    result = run(golden_path=golden_path, client=RaisingLLM())
+
+    assert len(result["failures"]) == 3
+    for failure in result["failures"]:
+        assert "latency_ms" in failure
+        assert isinstance(failure["latency_ms"], float)
+        assert failure["latency_ms"] >= 0
+
+
+class _SinkedLLM:
+    """LLMClient を模し、complete() のたびに自前の sink へ UsageEvent を記録するフェイク。
+
+    run() の「client に `_sink` があれば自動検出する」経路を検証するために使う。
+    """
+
+    def __init__(self, scripted, sink):
+        self.scripted = list(scripted)
+        self._sink = sink
+
+    def complete(self, messages, tools=None, tool_choice=None, *, operation="loop"):
+        r = self.scripted.pop(0)
+        self._sink.record(build_event(r, operation=operation, trace_id=None))
+        return r
+
+
+def _sinked_scripted(resp, tc):
+    milk_record = {"type": "feeding", "sub_type": "ミルク", "amount": 120}
+    return [
+        resp(
+            tool_calls=[tc("extract_records", {"records": [milk_record]})],
+            usage={"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120},
+        ),
+        resp(
+            tool_calls=[tc("extract_records", {"records": []})],
+            usage={"prompt_tokens": 50, "completion_tokens": 5, "total_tokens": 55},
+        ),
+        resp(
+            tool_calls=[tc("query_records", {"period": "today"})],
+            usage={"prompt_tokens": 60, "completion_tokens": 8, "total_tokens": 68},
+        ),
+        resp(
+            tool_calls=[tc("extract_records", {"records": []})],
+            usage={"prompt_tokens": 40, "completion_tokens": 4, "total_tokens": 44},
+        ),
+        resp(content="こんにちは！", usage={"prompt_tokens": 30, "completion_tokens": 6, "total_tokens": 36}),
+    ]
+
+
+def test_run_aggregates_cost_and_tokens_from_client_sink(tmp_path, resp, tc):
+    """client が公開する `_sink`（ListSink）を自動検出し、コスト・トークンを集計する。"""
+    golden_path = _run_golden(tmp_path)
+    sink = ListSink()
+    llm = _SinkedLLM(_sinked_scripted(resp, tc), sink)
+
+    result = run(golden_path=golden_path, client=llm)
+
+    cost = result["cost"]
+    assert cost["call_count"] == 5
+    assert cost["total_input_tokens"] == 100 + 50 + 60 + 40 + 30
+    assert cost["total_output_tokens"] == 20 + 5 + 8 + 4 + 6
+    assert cost["total_tokens"] == 120 + 55 + 68 + 44 + 36
+    # fake-model は litellm の単価表に無く cost_usd は None → 0 として合算される
+    assert cost["total_cost_usd"] == 0.0
+    assert cost["avg_latency_ms"] is not None
+    assert cost["p50_latency_ms"] is not None
+    assert cost["max_latency_ms"] is not None
+    assert cost["avg_latency_ms"] >= 0
+    assert set(cost["by_stage"].keys()) <= {"extract", "loop", "none"}
+    for stats in cost["by_stage"].values():
+        assert stats["count"] >= 1
+
+
+def test_run_explicit_sink_param_is_used_when_given(tmp_path, resp, tc):
+    """`sink=` を明示的に渡した場合はそちらを使ってコストを集計する。"""
+    golden_path = _run_golden(tmp_path)
+    sink = ListSink()
+    llm = _SinkedLLM(_sinked_scripted(resp, tc), sink)
+
+    result = run(golden_path=golden_path, client=llm, sink=sink)
+
+    assert result["cost"]["call_count"] == 5
+
+
 # ---------------------------------------------------------------------------
 
 
