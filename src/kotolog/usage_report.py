@@ -67,8 +67,11 @@ def main(argv: list[str] | None = None) -> None:
     db_url = args.db_url or config.db_url
 
     conn = connect(db_url, auth_token=config.turso_auth_token)
-    summary = crud.monthly_usage_summary(conn, month)
-    print(format_summary(summary, month))
+    try:
+        summary = crud.monthly_usage_summary(conn, month)
+        print(format_summary(summary, month))
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

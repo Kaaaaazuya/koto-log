@@ -1,11 +1,25 @@
 """usage_report.py の単体テスト（Issue #68）。
 
 argv パースは触らず、純粋関数の format_summary のみを検証する。
+main() については DB 接続が確実にクローズされることのみ、フェイク接続で検証する。
 """
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import pytest
+
+import kotolog.usage_report as usage_report
 from kotolog.usage_report import format_summary
+
+
+class _FakeConn:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
 
 
 def _summary(**overrides):
@@ -70,3 +84,35 @@ def test_format_summary_has_no_per_user_breakdown():
     """世帯全体のサマリーであり、ユーザー別出力は行わない（仕様どおり）。"""
     text = format_summary(_summary(), "2026-07")
     assert "line_user_id" not in text
+
+
+def _fake_config():
+    return SimpleNamespace(db_url="x", turso_auth_token=None)
+
+
+def test_main_closes_connection_on_success(monkeypatch):
+    fake_conn = _FakeConn()
+    monkeypatch.setattr(usage_report, "load_config", _fake_config)
+    monkeypatch.setattr(usage_report, "connect", lambda db_url, auth_token=None: fake_conn)
+    monkeypatch.setattr(usage_report.crud, "monthly_usage_summary", lambda conn, month: _summary())
+
+    usage_report.main(["--month", "2026-07"])
+
+    assert fake_conn.closed is True
+
+
+def test_main_closes_connection_even_if_summary_raises(monkeypatch):
+    """集計中に例外が起きても finally で接続をクローズする（Gemini指摘対応 #68）。"""
+    fake_conn = _FakeConn()
+    monkeypatch.setattr(usage_report, "load_config", _fake_config)
+    monkeypatch.setattr(usage_report, "connect", lambda db_url, auth_token=None: fake_conn)
+
+    def _raise(conn, month):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(usage_report.crud, "monthly_usage_summary", _raise)
+
+    with pytest.raises(RuntimeError):
+        usage_report.main(["--month", "2026-07"])
+
+    assert fake_conn.closed is True

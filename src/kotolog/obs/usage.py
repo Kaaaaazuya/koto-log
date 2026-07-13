@@ -82,7 +82,7 @@ class DbSink:
     （PII 最小化。列は [[project-pii-check]] 準拠）。
     例外は握りつぶさない：`LLMClient._record_usage` が best-effort で呼ぶため、
     ここで投げても本処理（記録・返信）は止まらない。
-    呼び出し元と接続を共有する前提のため commit タイミングに注意が必要（Issue #96 で検討）。
+    呼び出し元と接続を共有しており commit タイミングに懸念あり（Issue #96 で追跡）。
     """
 
     def __init__(self, conn: Any) -> None:

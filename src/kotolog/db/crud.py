@@ -504,7 +504,18 @@ def monthly_usage_summary(conn: KotoConnection, year_month: str) -> dict:
     - `cost_usd` は NULL（単価未取得）を 0 として合算する（[[project-pii-check]] とは
       無関係。ADR-0002 のリスク節：単価表未対応モデルは cost_usd=NULL になりうる）。
     - `by_operation` / `by_model` は「extract/loop/push」「モデル文字列」ごとの内訳。
+
+    `year_month` は厳密に "YYYY-MM" 形式のみ許可する（LIKE の先頭一致に使うため、
+    "2026" や "%" を含む値だと意図しない行まで拾ってしまう）。
     """
+    if (
+        len(year_month) != 7
+        or year_month[4] != "-"
+        or not year_month[:4].isdigit()
+        or not year_month[5:].isdigit()
+    ):
+        raise ValueError("year_month must be in YYYY-MM format")
+
     prefix = f"{year_month}%"
 
     totals = conn.execute(
