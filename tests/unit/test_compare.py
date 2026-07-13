@@ -176,8 +176,10 @@ def test_markdown_handles_null_summary_cost_by_tag_and_model_gracefully():
     # クラッシュしないこと（AttributeError が発生しない）
     md = build_comparison_markdown([result_all_null, result_by_tag_null])
 
-    # model が None/欠落の場合はプレースホルダーが表示されること
-    assert "不明なモデル" in md
+    # model が None/欠落の場合は index 付きのユニークなプレースホルダーが表示され、
+    # 複数の欠落モデルでも列・行を区別できること（Gemini Code Assist 指摘フォローアップ）
+    assert "不明なモデル-0" in md
+    assert "不明なモデル-1" in md
     # summary/cost が None の行では N/A 表記になること
     assert "N/A" in md
 

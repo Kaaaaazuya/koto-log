@@ -39,7 +39,7 @@ def _latency_str(latency_ms: float | None) -> str:
 
 
 def _model_name(result: dict, index: int) -> str:
-    return result.get("model") or "不明なモデル"
+    return result.get("model") or f"不明なモデル-{index}"
 
 
 # ---------------------------------------------------------------------------
@@ -84,17 +84,17 @@ def _diff_bullets(results: list[dict]) -> list[str]:
     best_rate = _best(results, _pass_rate, higher_is_better=True)
     if best_rate is not None:
         r, v = best_rate
-        bullets.append(f"- 正答率: **{r.get('model') or '不明なモデル'}** が最高（{v:.1%}）")
+        bullets.append(f"- 正答率: **{_model_name(r, results.index(r))}** が最高（{v:.1%}）")
 
     best_cost = _best(results, _total_cost, higher_is_better=False)
     if best_cost is not None:
         r, v = best_cost
-        bullets.append(f"- コスト: **{r.get('model') or '不明なモデル'}** が最安（${v:.4f}）")
+        bullets.append(f"- コスト: **{_model_name(r, results.index(r))}** が最安（${v:.4f}）")
 
     best_latency = _best(results, _avg_latency, higher_is_better=False)
     if best_latency is not None:
         r, v = best_latency
-        bullets.append(f"- レイテンシ: **{r.get('model') or '不明なモデル'}** が最速（平均 {v:.1f}ms）")
+        bullets.append(f"- レイテンシ: **{_model_name(r, results.index(r))}** が最速（平均 {v:.1f}ms）")
 
     return bullets
 
