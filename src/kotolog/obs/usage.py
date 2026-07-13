@@ -82,6 +82,7 @@ class DbSink:
     （PII 最小化。列は [[project-pii-check]] 準拠）。
     例外は握りつぶさない：`LLMClient._record_usage` が best-effort で呼ぶため、
     ここで投げても本処理（記録・返信）は止まらない。
+    呼び出し元と接続を共有する前提のため commit タイミングに注意が必要（Issue #96 で検討）。
     """
 
     def __init__(self, conn: Any) -> None:
@@ -108,6 +109,20 @@ class FanOutSink:
     def record(self, event: UsageEvent) -> None:  # noqa: D102
         for sink in self._sinks:
             sink.record(event)
+
+
+class ListSink:
+    """イベントをメモリ上のリストへ貯める Sink（E2-1: evals ランナーのコスト/レイテンシ集計に使用）。
+
+    プロセス内で完結する評価実行のように、後から `events` を読んでコスト・トークン数を
+    集計したい場合に使う。永続化やログ出力は行わない。
+    """
+
+    def __init__(self) -> None:
+        self.events: list[UsageEvent] = []
+
+    def record(self, event: UsageEvent) -> None:  # noqa: D102
+        self.events.append(event)
 
 
 def sink_from_config(config: Any, conn: Any = None) -> UsageSink:
