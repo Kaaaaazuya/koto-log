@@ -58,7 +58,7 @@ def _run_morning_push() -> None:
     except ValueError:
         return
 
-    remaining = (due_date - date.today()).days
+    remaining = (due_date - datetime.now(JST).date()).days
     if remaining < 0:
         return
 
