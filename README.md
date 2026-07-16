@@ -196,6 +196,8 @@ src/kotolog/
 │   └── loop/v1.txt     # loop.py のシステムプロンプト（E1-3、バージョン管理）
 ├── data/
 │   └── growth_standards.json # 厚労省標準値（月齢0〜36ヶ月、男女別 P3/P50/P97、P11）
+├── static/                   # 自己ホスト静的アセット（CSP `script-src 'self'` 配下で配信）
+│   └── chart.umd.min.js      # Chart.js v4.4.0（CDN 依存を排除・#98）
 ├── templates/
 │   ├── dashboard.html        # 今日タブ（サマリーカード+タイムライン）+ 期間選択グラフ（7/14/30日）
 │   ├── dashboard_growth.html # 成長曲線（身長・体重 × 標準値 Chart.js、P11）

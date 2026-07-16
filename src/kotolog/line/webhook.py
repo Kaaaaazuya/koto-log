@@ -15,9 +15,11 @@ import os
 import re
 import secrets
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from kotolog.db import crud
@@ -90,6 +92,9 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(dashboard_router)
 app.include_router(admin_router)
+
+# Issue #98: Serve Chart.js from static directory instead of CDN
+app.mount("/static", StaticFiles(directory=str(Path(__file__).parent.parent / "static")), name="static")
 
 _HELP_COMMANDS = {"操作一覧", "help", "ヘルプ", "?", "？"}
 
