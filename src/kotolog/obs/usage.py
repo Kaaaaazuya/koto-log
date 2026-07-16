@@ -74,6 +74,43 @@ class JsonLogSink:
         logger.info("usage %s", json.dumps(asdict(event), ensure_ascii=False))
 
 
+class DbSink:
+    """`usage_log` テーブルへ永続化する Sink（Issue #68 / ADR-0002 DB永続化）。
+
+    UsageEvent のフィールドをそのまま1行 INSERT する。line_user_id・本文・引数値は
+    そもそも UsageEvent に含まれないため、ここでも永続化されるのは固定フィールドのみ
+    （PII 最小化。列は [[project-pii-check]] 準拠）。
+    例外は握りつぶさない：`LLMClient._record_usage` が best-effort で呼ぶため、
+    ここで投げても本処理（記録・返信）は止まらない。
+    呼び出し元と接続を共有しており commit タイミングに懸念あり（Issue #96 で追跡）。
+    """
+
+    def __init__(self, conn: Any) -> None:
+        self._conn = conn
+
+    def record(self, event: UsageEvent) -> None:  # noqa: D102
+        data = asdict(event)
+        columns = ", ".join(data.keys())
+        placeholders = ", ".join("?" for _ in data)
+        # columns は UsageEvent の dataclass フィールド名のみ（外部入力ではない）。
+        self._conn.execute(
+            f"INSERT INTO usage_log ({columns}) VALUES ({placeholders})",  # nosec B608
+            list(data.values()),
+        )
+        self._conn.commit()
+
+
+class FanOutSink:
+    """複数 Sink へ同一イベントを転送する（例: JsonLogSink と DbSink の併用）。"""
+
+    def __init__(self, sinks: list[UsageSink]) -> None:
+        self._sinks = sinks
+
+    def record(self, event: UsageEvent) -> None:  # noqa: D102
+        for sink in self._sinks:
+            sink.record(event)
+
+
 class ListSink:
     """イベントをメモリ上のリストへ貯める Sink（E2-1: evals ランナーのコスト/レイテンシ集計に使用）。
 
@@ -88,9 +125,26 @@ class ListSink:
         self.events.append(event)
 
 
-def sink_from_config(config: Any) -> UsageSink:
-    """config.usage_log が真なら JsonLogSink、さもなくば NullSink。"""
-    return JsonLogSink() if getattr(config, "usage_log", False) else NullSink()
+def sink_from_config(config: Any, conn: Any = None) -> UsageSink:
+    """config のフラグから Sink を組み立てる。
+
+    - `usage_log` が真: `JsonLogSink`（標準ログへ1行JSON）を加える
+    - `usage_db` が真かつ `conn` が渡されている: `DbSink`（`usage_log` テーブル永続化）を加える
+    - 両方有効なら `FanOutSink` で両方に流す。両方無効、または `usage_db` のみ有効で
+      `conn` が無い場合は `NullSink`。
+      （`conn` 未提供時に `usage_db` を無視するのは意図的な graceful degrade。
+      DB 接続を持たない呼び出し元に conn 必須を強制しないための設計判断）
+    """
+    sinks: list[UsageSink] = []
+    if getattr(config, "usage_log", False):
+        sinks.append(JsonLogSink())
+    if getattr(config, "usage_db", False) and conn is not None:
+        sinks.append(DbSink(conn))
+    if not sinks:
+        return NullSink()
+    if len(sinks) == 1:
+        return sinks[0]
+    return FanOutSink(sinks)
 
 
 def _attr(obj: Any, key: str) -> Any:

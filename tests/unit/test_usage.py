@@ -10,7 +10,11 @@ import logging
 from dataclasses import asdict
 from types import SimpleNamespace
 
+from kotolog.db import crud
+from kotolog.db.connection import connect
 from kotolog.obs.usage import (
+    DbSink,
+    FanOutSink,
     JsonLogSink,
     ListSink,
     NullSink,
@@ -184,6 +188,142 @@ def test_sink_from_config():
     assert isinstance(sink_from_config(SimpleNamespace(usage_log=True)), JsonLogSink)
     assert isinstance(sink_from_config(SimpleNamespace(usage_log=False)), NullSink)
     assert isinstance(sink_from_config(SimpleNamespace()), NullSink)
+
+
+# --- DbSink（Issue #68 / ADR-0002 DB永続化） ----------------------------------
+
+
+def _usage_db_conn():
+    conn = connect(":memory:")
+    crud.init_db(conn)
+    return conn
+
+
+def _sample_event(**overrides) -> UsageEvent:
+    fields = dict(
+        trace_id="t1",
+        operation="loop",
+        model="claude-3-5-haiku-latest",
+        input_tokens=10,
+        output_tokens=5,
+        total_tokens=15,
+        cache_read_input_tokens=0,
+        cache_creation_input_tokens=0,
+        cost_usd=0.001,
+        ts="2026-07-10T09:00:00+09:00",
+    )
+    fields.update(overrides)
+    return UsageEvent(**fields)
+
+
+def test_db_sink_inserts_one_row():
+    conn = _usage_db_conn()
+    ev = _sample_event()
+
+    DbSink(conn).record(ev)
+
+    rows = conn.execute("SELECT * FROM usage_log").fetchall()
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["trace_id"] == "t1"
+    assert row["operation"] == "loop"
+    assert row["model"] == "claude-3-5-haiku-latest"
+    assert row["input_tokens"] == 10
+    assert row["output_tokens"] == 5
+    assert row["total_tokens"] == 15
+    assert row["cache_read_input_tokens"] == 0
+    assert row["cache_creation_input_tokens"] == 0
+    assert row["cost_usd"] == 0.001
+    assert row["ts"] == "2026-07-10T09:00:00+09:00"
+    conn.close()
+
+
+def test_db_sink_handles_null_cost():
+    conn = _usage_db_conn()
+    ev = _sample_event(cost_usd=None)
+
+    DbSink(conn).record(ev)
+
+    row = conn.execute("SELECT cost_usd FROM usage_log").fetchone()
+    assert row["cost_usd"] is None
+    conn.close()
+
+
+def test_db_sink_row_columns_match_usage_event_plus_id():
+    """PII非混入の確認: usage_log の列は UsageEvent のフィールド + id のみ。"""
+    conn = _usage_db_conn()
+    DbSink(conn).record(_sample_event())
+
+    cursor = conn.execute("SELECT * FROM usage_log LIMIT 1")
+    columns = {d[0] for d in cursor.description}
+    assert columns == {"id"} | set(asdict(_sample_event()).keys())
+    conn.close()
+
+
+def test_db_sink_multiple_records_append_rows():
+    conn = _usage_db_conn()
+    sink = DbSink(conn)
+    sink.record(_sample_event(operation="extract"))
+    sink.record(_sample_event(operation="push"))
+
+    rows = conn.execute("SELECT operation FROM usage_log ORDER BY id").fetchall()
+    assert [r["operation"] for r in rows] == ["extract", "push"]
+    conn.close()
+
+
+# --- FanOutSink / sink_from_config(conn=...) ----------------------------------
+
+
+def test_fan_out_sink_forwards_to_all_sinks():
+    ev = _sample_event()
+    calls: list[str] = []
+
+    class _Recorder:
+        def __init__(self, name):
+            self.name = name
+
+        def record(self, event):
+            calls.append(self.name)
+
+    FanOutSink([_Recorder("a"), _Recorder("b")]).record(ev)
+    assert calls == ["a", "b"]
+
+
+def test_sink_from_config_db_only_returns_db_sink():
+    conn = _usage_db_conn()
+    sink = sink_from_config(SimpleNamespace(usage_log=False, usage_db=True), conn=conn)
+    assert isinstance(sink, DbSink)
+    conn.close()
+
+
+def test_sink_from_config_both_flags_returns_fan_out():
+    conn = _usage_db_conn()
+    sink = sink_from_config(SimpleNamespace(usage_log=True, usage_db=True), conn=conn)
+    assert isinstance(sink, FanOutSink)
+    conn.close()
+
+
+def test_sink_from_config_db_flag_without_conn_falls_back():
+    """usage_db=True でも conn が無ければ DbSink は組み立てられず graceful に fallback する。"""
+    sink = sink_from_config(SimpleNamespace(usage_log=False, usage_db=True), conn=None)
+    assert isinstance(sink, NullSink)
+
+
+def test_sink_from_config_neither_flag_is_null_sink():
+    conn = _usage_db_conn()
+    sink = sink_from_config(SimpleNamespace(usage_log=False, usage_db=False), conn=conn)
+    assert isinstance(sink, NullSink)
+    conn.close()
+
+
+def test_sink_from_config_fan_out_actually_records_to_both():
+    conn = _usage_db_conn()
+    sink = sink_from_config(SimpleNamespace(usage_log=True, usage_db=True), conn=conn)
+    sink.record(_sample_event())
+
+    rows = conn.execute("SELECT * FROM usage_log").fetchall()
+    assert len(rows) == 1
+    conn.close()
 
 
 # --- トレース ID -------------------------------------------------------------

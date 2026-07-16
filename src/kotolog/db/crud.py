@@ -491,3 +491,79 @@ def increment_rate_limit(conn: KotoConnection, user_id: str, limit_type: str, wi
                 (msg_inc, llm_inc, now_str, user_id),
             )
         conn.commit()
+
+
+# --- コスト計測（Issue #68 / ADR-0002 DB永続化） -----------------------------
+
+
+def monthly_usage_summary(conn: KotoConnection, year_month: str) -> dict:
+    """指定月（"YYYY-MM"）の usage_log を集計する。世帯全体（ユーザー別内訳なし）。
+
+    - `ts` は JST ISO8601 文字列（例: "2026-07-10T09:00:00+09:00"）。先頭7文字が
+      year_month に一致する行を対象にする。
+    - `cost_usd` は NULL（単価未取得）を 0 として合算する（[[project-pii-check]] とは
+      無関係。ADR-0002 のリスク節：単価表未対応モデルは cost_usd=NULL になりうる）。
+    - `by_operation` / `by_model` は「extract/loop/push」「モデル文字列」ごとの内訳。
+
+    `year_month` は厳密に "YYYY-MM" 形式のみ許可する（LIKE の先頭一致に使うため、
+    "2026" や "%" を含む値だと意図しない行まで拾ってしまう）。
+    """
+    if (
+        len(year_month) != 7
+        or year_month[4] != "-"
+        or not year_month[:4].isdigit()
+        or not year_month[5:].isdigit()
+    ):
+        raise ValueError("year_month must be in YYYY-MM format")
+
+    prefix = f"{year_month}%"
+
+    totals = conn.execute(
+        """
+        SELECT
+            COUNT(*) AS call_count,
+            COALESCE(SUM(input_tokens), 0) AS total_input_tokens,
+            COALESCE(SUM(output_tokens), 0) AS total_output_tokens,
+            COALESCE(SUM(total_tokens), 0) AS total_tokens,
+            COALESCE(SUM(cost_usd), 0) AS total_cost_usd
+        FROM usage_log
+        WHERE ts LIKE ?
+        """,
+        (prefix,),
+    ).fetchone()
+
+    def _breakdown(group_col: str) -> dict:
+        rows = conn.execute(
+            f"""
+            SELECT
+                {group_col} AS key,
+                COUNT(*) AS calls,
+                COALESCE(SUM(input_tokens), 0) AS input_tokens,
+                COALESCE(SUM(output_tokens), 0) AS output_tokens,
+                COALESCE(SUM(cost_usd), 0) AS cost_usd
+            FROM usage_log
+            WHERE ts LIKE ?
+            GROUP BY {group_col}
+            """,  # nosec B608 - group_col は本関数内の固定リテラルのみ渡す
+            (prefix,),
+        ).fetchall()
+        return {
+            row["key"]: {
+                "calls": row["calls"],
+                "input_tokens": row["input_tokens"],
+                "output_tokens": row["output_tokens"],
+                "cost_usd": row["cost_usd"],
+            }
+            for row in rows
+            if row["key"] is not None
+        }
+
+    return {
+        "call_count": totals["call_count"],
+        "total_input_tokens": totals["total_input_tokens"],
+        "total_output_tokens": totals["total_output_tokens"],
+        "total_tokens": totals["total_tokens"],
+        "total_cost_usd": totals["total_cost_usd"],
+        "by_operation": _breakdown("operation"),
+        "by_model": _breakdown("model"),
+    }

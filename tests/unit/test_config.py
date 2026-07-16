@@ -39,3 +39,13 @@ def test_usage_log_defaults_off(monkeypatch):
 def test_usage_log_enabled_by_env(monkeypatch):
     monkeypatch.setenv("KOTOLOG_USAGE_LOG", "1")
     assert load_config().usage_log is True
+
+
+def test_usage_db_defaults_off(monkeypatch):
+    monkeypatch.delenv("KOTOLOG_USAGE_DB", raising=False)
+    assert load_config().usage_db is False
+
+
+def test_usage_db_enabled_by_env(monkeypatch):
+    monkeypatch.setenv("KOTOLOG_USAGE_DB", "1")
+    assert load_config().usage_db is True

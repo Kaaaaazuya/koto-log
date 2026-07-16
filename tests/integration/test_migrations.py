@@ -126,3 +126,54 @@ def test_version_not_above_baseline_raises(monkeypatch):
     with pytest.raises(ValueError):
         migrate(conn)
     conn.close()
+
+
+def _columns(conn, table: str) -> list[str]:
+    cursor = conn.execute(f"PRAGMA table_info({table})")  # nosec B608 - table はテスト内固定値
+    return [row["name"] for row in cursor.fetchall()]
+
+
+def test_0006_creates_usage_log_table():
+    """マイグレーション適用後（= init_db 経由）に usage_log テーブルが存在する（Issue #68）。"""
+    conn = connect(":memory:")
+    migrate(conn)
+
+    assert _table_exists(conn, "usage_log")
+    assert set(_columns(conn, "usage_log")) == {
+        "id",
+        "trace_id",
+        "operation",
+        "model",
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "cache_read_input_tokens",
+        "cache_creation_input_tokens",
+        "cost_usd",
+        "ts",
+    }
+    conn.close()
+
+
+def test_0006_usage_log_has_no_pii_columns():
+    """usage_log には line_user_id・本文等の PII カラムが一切無い（ADR-0002 方針）。"""
+    conn = connect(":memory:")
+    migrate(conn)
+
+    columns = set(_columns(conn, "usage_log"))
+    assert "line_user_id" not in columns
+    assert not any("content" in c or "message" in c or "user" in c for c in columns)
+    conn.close()
+
+
+def test_0006_usage_log_has_ts_index():
+    """月次集計クエリのため ts にインデックスがある。"""
+    conn = connect(":memory:")
+    migrate(conn)
+
+    rows = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='usage_log'"
+    ).fetchall()
+    names = {r["name"] for r in rows}
+    assert any("ts" in n for n in names)
+    conn.close()
