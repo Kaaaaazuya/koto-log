@@ -208,8 +208,9 @@ src/kotolog/
 │   ├── dashboard.py    # /dashboard ルーター
 │   ├── admin.py        # /admin ルーター（設定 + テスト Push + 記録 CRUD + ユーザー管理）
 │   ├── push.py         # LINE Push API クライアント
-│   ├── scheduler.py    # APScheduler（7時カウントダウン・21時サマリー・fan-out Push）
-│   └── reply.py        # LINE Reply API クライアント
+│   ├── reply.py        # LINE Reply API クライアント
+│   ├── _line_client.py # LINE API 送信の共通実装（HTTP 状態確認・リトライ・失敗の構造化ログ #102）
+│   └── scheduler.py    # APScheduler（7時カウントダウン・21時サマリー・fan-out Push）
 └── cli.py              # 対話CLI エントリ（LINE と同じ Agent を共有）
 evals/                  # ツール選択の正答率評価
 ├── golden/utterances.yaml # E1-1: 発話→期待ツール呼び出しのゴールデンセット

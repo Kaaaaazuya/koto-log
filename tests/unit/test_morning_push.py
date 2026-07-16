@@ -67,9 +67,12 @@ def test_morning_text_tags_operation_push():
 
 
 def test_send_push_posts_correct_payload():
-    with patch("kotolog.line.push.httpx.Client") as mock_client_cls:
+    with patch("kotolog.line._line_client.httpx.Client") as mock_client_cls:
         mock_client = MagicMock()
         mock_client_cls.return_value.__enter__.return_value = mock_client
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_client.post.return_value = mock_resp
 
         from kotolog.line.push import send_push
 
@@ -110,7 +113,7 @@ def test_run_morning_push_skips_when_no_due_date(monkeypatch):
     with (
         patch("kotolog.line.scheduler.connect") as mock_connect,
         patch("kotolog.line.scheduler.crud.get_setting", return_value=None),
-        patch("kotolog.line.push.httpx.Client") as mock_http,
+        patch("kotolog.line._line_client.httpx.Client") as mock_http,
     ):
         mock_connect.return_value = MagicMock()
         from kotolog.line.scheduler import _run_morning_push
@@ -129,7 +132,7 @@ def test_run_morning_push_skips_when_past_due(monkeypatch):
     with (
         patch("kotolog.line.scheduler.connect") as mock_connect,
         patch("kotolog.line.scheduler.crud.get_setting", side_effect=_get_setting),
-        patch("kotolog.line.push.httpx.Client") as mock_http,
+        patch("kotolog.line._line_client.httpx.Client") as mock_http,
     ):
         mock_connect.return_value = MagicMock()
         from kotolog.line.scheduler import _run_morning_push

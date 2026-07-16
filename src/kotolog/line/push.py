@@ -5,20 +5,15 @@ Push API は replyToken なしにユーザーへ能動的にメッセージを�
 
 from __future__ import annotations
 
-import httpx
+from kotolog.line._line_client import post_line_message
 
 LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push"
 
 
 def send_push(user_id: str, text: str, access_token: str) -> None:
     """LINE Push API にテキストメッセージを送信する。"""
-    with httpx.Client() as client:
-        client.post(
-            LINE_PUSH_URL,
-            headers={"Authorization": f"Bearer {access_token}"},
-            json={
-                "to": user_id,
-                "messages": [{"type": "text", "text": text}],
-            },
-            timeout=10,
-        )
+    payload = {
+        "to": user_id,
+        "messages": [{"type": "text", "text": text}],
+    }
+    post_line_message(LINE_PUSH_URL, payload, access_token, event="push")
