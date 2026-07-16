@@ -147,6 +147,43 @@ def test_markdown_handles_missing_cost_data_gracefully():
 # ---------------------------------------------------------------------------
 
 
+def test_markdown_handles_null_summary_cost_by_tag_and_model_gracefully():
+    """外部結果JSONで summary/cost/by_tag が明示的に null、model が null/欠落でもクラッシュしない。
+
+    evals/runner.py 以外が生成した結果JSONでは、キー自体はあっても値が JSON の null
+    （Python の None）になっているケースがあり得る。`.get("summary", {})` は
+    キーが存在して値が None のときは None をそのまま返すため、後続の `.get()` チェーンで
+    AttributeError になっていた（Gemini Code Assist 指摘）。
+    """
+    result_all_null = {
+        "model": None,
+        "summary": None,
+        "cost": None,
+    }
+    result_by_tag_null = {
+        # model キー自体が欠落しているケース
+        "summary": {
+            "overall": {"total": 10, "passed": 5},
+            "by_tag": None,
+            "false_positive_rate": 0.1,
+        },
+        "cost": {
+            "total_cost_usd": 0.01,
+            "avg_latency_ms": 100.0,
+        },
+    }
+
+    # クラッシュしないこと（AttributeError が発生しない）
+    md = build_comparison_markdown([result_all_null, result_by_tag_null])
+
+    # model が None/欠落の場合は index 付きのユニークなプレースホルダーが表示され、
+    # 複数の欠落モデルでも列・行を区別できること（Gemini Code Assist 指摘フォローアップ）
+    assert "不明なモデル-0" in md
+    assert "不明なモデル-1" in md
+    # summary/cost が None の行では N/A 表記になること
+    assert "N/A" in md
+
+
 def test_load_results_reads_json_files(tmp_path: pathlib.Path):
     path_a = tmp_path / "a.json"
     path_b = tmp_path / "b.json"

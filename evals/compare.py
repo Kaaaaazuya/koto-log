@@ -39,7 +39,7 @@ def _latency_str(latency_ms: float | None) -> str:
 
 
 def _model_name(result: dict, index: int) -> str:
-    return result.get("model") or f"model-{index}"
+    return result.get("model") or f"不明なモデル-{index}"
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +61,8 @@ def _best(results: list[dict], value_fn, *, higher_is_better: bool) -> tuple[dic
 
 
 def _pass_rate(result: dict) -> float | None:
-    overall = result.get("summary", {}).get("overall", {})
+    summary = result.get("summary") or {}
+    overall = summary.get("overall") or {}
     total = overall.get("total", 0)
     if not total:
         return None
@@ -69,11 +70,11 @@ def _pass_rate(result: dict) -> float | None:
 
 
 def _total_cost(result: dict) -> float | None:
-    return result.get("cost", {}).get("total_cost_usd")
+    return (result.get("cost") or {}).get("total_cost_usd")
 
 
 def _avg_latency(result: dict) -> float | None:
-    return result.get("cost", {}).get("avg_latency_ms")
+    return (result.get("cost") or {}).get("avg_latency_ms")
 
 
 def _diff_bullets(results: list[dict]) -> list[str]:
@@ -83,17 +84,17 @@ def _diff_bullets(results: list[dict]) -> list[str]:
     best_rate = _best(results, _pass_rate, higher_is_better=True)
     if best_rate is not None:
         r, v = best_rate
-        bullets.append(f"- 正答率: **{r.get('model')}** が最高（{v:.1%}）")
+        bullets.append(f"- 正答率: **{_model_name(r, results.index(r))}** が最高（{v:.1%}）")
 
     best_cost = _best(results, _total_cost, higher_is_better=False)
     if best_cost is not None:
         r, v = best_cost
-        bullets.append(f"- コスト: **{r.get('model')}** が最安（${v:.4f}）")
+        bullets.append(f"- コスト: **{_model_name(r, results.index(r))}** が最安（${v:.4f}）")
 
     best_latency = _best(results, _avg_latency, higher_is_better=False)
     if best_latency is not None:
         r, v = best_latency
-        bullets.append(f"- レイテンシ: **{r.get('model')}** が最速（平均 {v:.1f}ms）")
+        bullets.append(f"- レイテンシ: **{_model_name(r, results.index(r))}** が最速（平均 {v:.1f}ms）")
 
     return bullets
 
@@ -117,9 +118,10 @@ def build_comparison_markdown(results: list[dict]) -> str:
     lines.append("|---|---|---|---|---|")
     for i, r in enumerate(results):
         model = _model_name(r, i)
-        overall = r.get("summary", {}).get("overall", {"total": 0, "passed": 0})
+        summary = r.get("summary") or {}
+        overall = summary.get("overall") or {"total": 0, "passed": 0}
         rate = _rate_str(overall.get("passed", 0), overall.get("total", 0))
-        fp = _pct_str(r.get("summary", {}).get("false_positive_rate"))
+        fp = _pct_str(summary.get("false_positive_rate"))
         cost = _cost_str(_total_cost(r))
         latency = _latency_str(_avg_latency(r))
         lines.append(f"| {model} | {rate} | {fp} | {cost} | {latency} |")
@@ -129,13 +131,13 @@ def build_comparison_markdown(results: list[dict]) -> str:
     lines.append("## タグ別正答率")
     lines.append("")
     model_names = [_model_name(r, i) for i, r in enumerate(results)]
-    all_tags = sorted({tag for r in results for tag in r.get("summary", {}).get("by_tag", {})})
+    all_tags = sorted({tag for r in results for tag in ((r.get("summary") or {}).get("by_tag") or {})})
     lines.append("| タグ | " + " | ".join(model_names) + " |")
     lines.append("|---|" + "---|" * len(model_names))
     for tag in all_tags:
         row = [tag]
         for r in results:
-            bucket = r.get("summary", {}).get("by_tag", {}).get(tag)
+            bucket = ((r.get("summary") or {}).get("by_tag") or {}).get(tag)
             row.append(_rate_str(bucket["passed"], bucket["total"]) if bucket else "-")
         lines.append("| " + " | ".join(row) + " |")
     lines.append("")
