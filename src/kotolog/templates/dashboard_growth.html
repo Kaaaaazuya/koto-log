@@ -23,12 +23,12 @@
   </style>
 </head>
 <body>
-  <a class="back" href="/dashboard?token={{ token }}">← ダッシュボード</a>
+  <a class="back" href="/dashboard">← ダッシュボード</a>
   <h1>成長曲線</h1>
 
   {% if not has_birthday %}
   <div class="notice">
-    誕生日が未設定のため月齢を計算できません。<a href="/admin?token={{ token }}">管理画面</a>で子の誕生日を設定してください。
+    誕生日が未設定のため月齢を計算できません。<a href="/admin">管理画面</a>で子の誕生日を設定してください。
   </div>
   {% endif %}
 

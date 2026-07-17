@@ -36,7 +36,7 @@
 
   <div class="card">
     <h2>設定</h2>
-    <form method="POST" action="/admin?token={{ token }}">
+    <form method="POST" action="/admin">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label>出産予定日</label>
       <input type="date" name="due_date" value="{{ due_date }}">
@@ -54,7 +54,7 @@
     <p style="font-size:.85rem;color:#888;margin-bottom:12px;">
       過去の記録を手動で追加・編集・削除します（AIを介さない確実な修正用）。
     </p>
-    <a class="btn btn-primary" href="/admin/records?token={{ token }}">記録を管理</a>
+    <a class="btn btn-primary" href="/admin/records">記録を管理</a>
   </div>
 
   <div class="card">
@@ -62,7 +62,7 @@
     <p style="font-size:.85rem;color:#888;margin-bottom:12px;">
       LINE ユーザーの通知設定・ニックネーム・対象児の管理。
     </p>
-    <a class="btn btn-primary" href="/admin/users?token={{ token }}">ユーザーを管理</a>
+    <a class="btn btn-primary" href="/admin/users">ユーザーを管理</a>
   </div>
 
   <div class="card">
@@ -70,7 +70,7 @@
     <p style="font-size:.85rem;color:#888;margin-bottom:12px;">
       今すぐ朝のカウントダウンメッセージを送信します。予定日と LINE ユーザーID が設定済みの場合のみ送信されます。
     </p>
-    <form method="POST" action="/admin/test-push?token={{ token }}">
+    <form method="POST" action="/admin/test-push">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="btn btn-secondary">今すぐ送信</button>
     </form>

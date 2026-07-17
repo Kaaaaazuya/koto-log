@@ -99,7 +99,7 @@ turso db shell koto-log
 | `TURSO_AUTH_TOKEN` | Turso 認証トークン |
 | `LINE_CHANNEL_SECRET` | LINE チャネルシークレット |
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINE アクセストークン |
-| `KOTOLOG_DASHBOARD_TOKEN` | ダッシュボード・管理画面の認証トークン（任意） |
+| `KOTOLOG_DASHBOARD_TOKEN` | ダッシュボード・管理画面のログイントークン（`/admin/login` でセッション認証。default-deny のため未設定ではアクセス不可） |
 
 ---
 
