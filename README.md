@@ -276,7 +276,7 @@ uv run uvicorn kotolog.line.webhook:app --reload --port 8000
 | `TURSO_AUTH_TOKEN` | Turso 認証トークン |
 | `LINE_CHANNEL_SECRET` | LINE チャネルシークレット |
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINE アクセストークン |
-| `KOTOLOG_DASHBOARD_TOKEN` | ダッシュボード認証トークン（未設定で認証なし） |
+| `KOTOLOG_DASHBOARD_TOKEN` | ダッシュボード・管理画面のログイントークン（`/admin/login` で入力しセッション認証。未設定時は default-deny でアクセス不可） |
 | `KOTOLOG_DEFAULT_CHILD` | `baby`（render.yaml に記載済み。P9.1 以降は DB に子が存在しない初回起動のシード名として使用） |
 
 > 出産予定日・LINE ユーザー ID は `/admin` 画面または LINE チャット内で設定。環境変数不要。
@@ -299,7 +299,7 @@ git push  # main への push で Render が自動デプロイ
 | `KOTOLOG_DEFAULT_CHILD` | `baby` | 初回起動時のシード子名（P9.1 以降、既定児は DB 管理） |
 | `LINE_CHANNEL_SECRET` | （LINE利用時必須） | 署名検証に使用 |
 | `LINE_CHANNEL_ACCESS_TOKEN` | （LINE利用時必須） | Reply/Push API に使用 |
-| `KOTOLOG_DASHBOARD_TOKEN` | （空） | ダッシュボード URL トークン |
+| `KOTOLOG_DASHBOARD_TOKEN` | （空） | ダッシュボード・管理画面のログイントークン（`/admin/login` でセッション認証。#100 で URL クエリ認証は廃止） |
 | `KOTOLOG_USAGE_LOG` | （空） | `1`/`true` でトークン使用量を 1行 JSON ログ出力（P7） |
 | `KOTOLOG_USAGE_DB` | （空） | `1`/`true` でトークン使用量を `usage_log` テーブルへ永続化（Issue #68） |
 

@@ -138,23 +138,18 @@ def test_admin_with_session_cookie_works(client):
     assert resp.status_code == 200
 
 
-def test_admin_with_query_token_still_works(client):
-    """GET /admin with query token should still work (backward compatibility)."""
-    with patch("kotolog.db.crud.get_setting", return_value=""):
-        resp = client.get(f"/admin?token={TOKEN}")
-    assert resp.status_code == 200
-
-
-def test_admin_without_token_or_session_returns_403(client):
-    """GET /admin without token or session should return 403."""
+def test_admin_without_session_redirects_to_login(client):
+    """GET /admin without session should redirect to /admin/login (303)."""
     resp = client.get("/admin")
-    assert resp.status_code == 403
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/admin/login"
 
 
-def test_admin_with_wrong_token_returns_403(client):
-    """GET /admin with wrong query token should return 403."""
-    resp = client.get("/admin?token=wrong")
-    assert resp.status_code == 403
+def test_admin_with_query_token_alone_no_longer_works(client):
+    """GET /admin with query token but no session should redirect (token no longer auth method)."""
+    resp = client.get(f"/admin?token={TOKEN}")
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/admin/login"
 
 
 # --- Logout clears session properly -------------------------------------------
@@ -168,12 +163,13 @@ def test_after_logout_accessing_admin_requires_auth_again(client):
     # Logout
     client.post("/admin/logout")
 
-    # Try to access /admin without token
+    # Try to access /admin without token or session
     resp = client.get("/admin")
-    assert resp.status_code == 403
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/admin/login"
 
 
-# --- Admin records with session and backward compat ---------------------------
+# --- Admin records with session ---------------------------------------------------
 
 
 def test_admin_records_with_session_cookie(client):
@@ -187,11 +183,11 @@ def test_admin_records_with_session_cookie(client):
     assert resp.status_code == 200
 
 
-def test_admin_records_with_query_token_still_works(client):
-    """GET /admin/records with query token should still work (backward compatibility)."""
-    with patch("kotolog.db.crud.query_records", return_value=[]):
-        resp = client.get(f"/admin/records?token={TOKEN}")
-    assert resp.status_code == 200
+def test_admin_records_without_session_redirects_to_login(client):
+    """GET /admin/records without session should redirect to /admin/login."""
+    resp = client.get("/admin/records")
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/admin/login"
 
 
 def test_admin_records_post_with_session(client):
@@ -222,31 +218,21 @@ def test_admin_records_post_with_session(client):
     assert resp.status_code == 303
 
 
-def test_admin_records_post_with_query_token_still_works(client):
-    """POST /admin/records with query token should still work (backward compatibility)."""
-    import re
-
-    # Get CSRF token from the new record form with token parameter
-    resp_form = client.get(f"/admin/records/new?token={TOKEN}")
-    assert resp_form.status_code == 200
-    match = re.search(r'value="([^"]+)".*?name="csrf_token"', resp_form.text)
-    if not match:
-        match = re.search(r'name="csrf_token".*?value="([^"]+)"', resp_form.text)
-    csrf_token = match.group(1)
-
-    with patch("kotolog.db.crud.insert_record", return_value=1):
-        resp = client.post(
-            f"/admin/records?token={TOKEN}",
-            data={
-                "type": "feeding",
-                "started_at": "2026-06-26T21:30",
-                "csrf_token": csrf_token,
-            },
-        )
-    assert resp.status_code == 303
+def test_admin_records_post_without_session_returns_403(client):
+    """POST /admin/records without session should return 403."""
+    # Try to POST without logging in
+    resp = client.post(
+        "/admin/records",
+        data={
+            "type": "feeding",
+            "started_at": "2026-06-26T21:30",
+            "csrf_token": "dummy",
+        },
+    )
+    assert resp.status_code == 403
 
 
-# --- Admin users with session and backward compat ----------------------------
+# --- Admin users with session ---------------------------------------------------
 
 
 def test_admin_users_with_session_cookie(client):
@@ -261,12 +247,11 @@ def test_admin_users_with_session_cookie(client):
     assert resp.status_code == 200
 
 
-def test_admin_users_with_query_token_still_works(client):
-    """GET /admin/users with query token should still work (backward compatibility)."""
-    with patch("kotolog.db.crud.list_users", return_value=[]):
-        with patch("kotolog.db.crud.list_children", return_value=[]):
-            resp = client.get(f"/admin/users?token={TOKEN}")
-    assert resp.status_code == 200
+def test_admin_users_without_session_redirects_to_login(client):
+    """GET /admin/users without session should redirect to /admin/login."""
+    resp = client.get("/admin/users")
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/admin/login"
 
 
 # --- Security: Session token not exposed in redirects -------------------------

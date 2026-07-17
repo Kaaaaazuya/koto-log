@@ -29,7 +29,7 @@
   </style>
 </head>
 <body>
-  <a class="back" href="/admin?token={{ token }}">← 管理トップ</a>
+  <a class="back" href="/admin">← 管理トップ</a>
   <h1 style="margin-bottom:24px;">ユーザー承認</h1>
 
   {% if approved %}
@@ -62,11 +62,11 @@
           </td>
           <td class="meta">{{ u.created_at }}</td>
           <td>
-            <form method="POST" action="/admin/approvals/{{ u.line_user_id }}/approve?token={{ token }}" class="inline-form" style="display: inline;">
+            <form method="POST" action="/admin/approvals/{{ u.line_user_id }}/approve" class="inline-form" style="display: inline;">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button type="submit" class="btn btn-primary">承認</button>
             </form>
-            <form method="POST" action="/admin/approvals/{{ u.line_user_id }}/reject?token={{ token }}" class="inline-form" style="display: inline;"
+            <form method="POST" action="/admin/approvals/{{ u.line_user_id }}/reject" class="inline-form" style="display: inline;"
                   onsubmit="return confirm({{ (u.nickname or u.line_user_id) | tojson }} + ' を却下しますか？')">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button type="submit" class="btn btn-danger">却下</button>

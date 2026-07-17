@@ -80,7 +80,7 @@ app.add_middleware(
     secret_key=_SESSION_SECRET,
     session_cookie="kotolog_session",
     max_age=86400 * 7,  # 7 days
-    path="/admin",
+    path="/",
     https_only=_SESSION_COOKIE_SECURE,
     same_site="strict",
 )

@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import json
-import os
-import secrets
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from importlib import resources
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from kotolog.db import crud
@@ -72,16 +70,11 @@ def _timeline_label(r: dict) -> str:
     return " · ".join(parts) or _TYPE_LABELS.get(t, t)
 
 
-def _check_token(token: str | None) -> None:
-    """Default-deny authentication: always require a valid token.
-
-    Issue #27: Dashboard MUST require authentication regardless of environment.
-    Uses secrets.compare_digest for timing-attack resistant token comparison.
-    """
-    expected = os.environ.get("KOTOLOG_DASHBOARD_TOKEN", "")
-    # Default-deny: reject unless token is explicitly configured and matches
-    if not expected or not token or not secrets.compare_digest(token, expected):
-        raise HTTPException(status_code=403, detail="Invalid token")
+def _redirect_if_unauth(request: Request):
+    """未認証なら /admin/login へ 303 リダイレクトする Response を返す。認証済みなら None。"""
+    if not request.session.get("authenticated"):
+        return RedirectResponse("/admin/login", status_code=303)
+    return None
 
 
 def _get_conn_and_child():
@@ -93,8 +86,9 @@ def _get_conn_and_child():
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request, token: str | None = None, days: int = 7):
-    _check_token(token)
+async def dashboard(request: Request, days: int = 7):
+    if (redir := _redirect_if_unauth(request)) is not None:
+        return redir
     days = max(1, min(days, 90))
     conn, child_id = _get_conn_and_child()
 
@@ -171,7 +165,6 @@ async def dashboard(request: Request, token: str | None = None, days: int = 7):
             "diaper_summaries": diaper_summaries,
             "days": days,
             "now": now.strftime("%Y/%m/%d %H:%M"),
-            "token": token or "",
         },
     )
 
@@ -183,9 +176,10 @@ def _load_growth_standards() -> dict:
 
 
 @router.get("/dashboard/growth", response_class=HTMLResponse)
-async def dashboard_growth(request: Request, token: str | None = None):
+async def dashboard_growth(request: Request):
     """成長曲線ページ（身長・体重と標準値の比較）。"""
-    _check_token(token)
+    if (redir := _redirect_if_unauth(request)) is not None:
+        return redir
     conn, child_id = _get_conn_and_child()
 
     now = datetime.now(JST)
@@ -233,7 +227,6 @@ async def dashboard_growth(request: Request, token: str | None = None):
         request,
         "dashboard_growth.html",
         {
-            "token": token or "",
             "height_data": json.dumps(_to_chart_data(height_records)),
             "weight_data": json.dumps(_to_chart_data(weight_records)),
             "std_months": json.dumps(std["height"]["months"]),
