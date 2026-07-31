@@ -1,0 +1,57 @@
+name: Sync User Manual
+
+# main へのマージ後、ソースコードに変更があった場合に
+# docs/user-manual.html を AI で自動更新する。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/kotolog/**'
+
+# ループ防止: auto-commit 自身が生成したコミットでは起動しない
+# ([skip ci] タグを含むコミットメッセージは GitHub Actions が自動スキップ)
+
+permissions:
+  contents: write
+
+jobs:
+  sync-manual:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2          # diff に HEAD~1 が必要
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract code diff
+        run: |
+          git diff HEAD~1..HEAD -- src/kotolog/ > /tmp/code.diff
+          echo "Diff size: $(wc -c < /tmp/code.diff) bytes"
+          cat /tmp/code.diff | head -50   # ログ確認用（先頭50行）
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Anthropic SDK
+        run: pip install anthropic
+
+      - name: Sync user manual with AI
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python scripts/sync_manual.py /tmp/code.diff docs/user-manual.html
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/user-manual.html
+          if ! git diff --staged --quiet; then
+            git commit -m "docs: auto-sync user manual [skip ci]"
+            git push origin main
+            echo "マニュアルを更新してプッシュしました。"
+          else
+            echo "ユーザー向け変更なし。コミットをスキップします。"
+          fi
